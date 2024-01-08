@@ -8,10 +8,9 @@ defmodule StarflareMqtt.Packet.Connect do
     Qos,
     Boolean,
     Binary,
-    Utf8
+    Utf8,
+    Property
   }
-
-  alias StarflareMqtt.Packet.Property
 
   @protocol_name_len 4
   @protocol_version 5

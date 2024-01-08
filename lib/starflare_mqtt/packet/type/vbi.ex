@@ -1,6 +1,5 @@
 defmodule StarflareMqtt.Packet.Type.Vbi do
   @moduledoc false
-  require Logger
 
   import Bitwise
 
@@ -8,7 +7,7 @@ defmodule StarflareMqtt.Packet.Type.Vbi do
   def skip(<<_, 0::1, _::7, rest::binary>>), do: {:ok, rest}
   def skip(<<_, _, 0::1, _::7, rest::binary>>), do: {:ok, rest}
   def skip(<<_, _, _, 0::1, _::7, rest::binary>>), do: {:ok, rest}
-  def skip(_), do: {:error, :decode_error}
+  def skip(_), do: {:error, :malformed_packet}
 
   def decode(data), do: decode(data, 1, 0)
 
@@ -20,9 +19,10 @@ defmodule StarflareMqtt.Packet.Type.Vbi do
     decode(rest, multiplier * 128, total + num * multiplier)
   end
 
-  defp decode(_, _, _), do: {:error, :decode_error}
+  defp decode(_, _, _), do: {:error, :malformed_packet}
 
   def encode(integer), do: encode(integer, <<>>)
+  defp encode(0, <<>>), do: {:ok, <<0>>}
   defp encode(0, data), do: {:ok, data}
 
   defp encode(integer, data) do

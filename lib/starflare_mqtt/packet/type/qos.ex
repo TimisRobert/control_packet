@@ -1,21 +1,25 @@
 defmodule StarflareMqtt.Packet.Type.Qos do
   @moduledoc false
 
+  @at_most_once 0
+  @at_least_once 1
+  @exactly_once 2
+
   def decode(data) do
     case data do
-      0 -> {:ok, :at_most_once}
-      1 -> {:ok, :al_least_once}
-      2 -> {:ok, :exactly_once}
-      _ -> {:error, :unsupported_qos}
+      @at_most_once -> {:ok, :at_most_once}
+      @at_least_once -> {:ok, :at_least_once}
+      @exactly_once -> {:ok, :exactly_once}
+      _ -> {:error, :qos_not_supported}
     end
   end
 
   def encode(qos) do
     case qos do
-      :at_most_once -> {:ok, 0}
-      :at_least_once -> {:ok, 1}
-      :exactly_once -> {:ok, 2}
-      _ -> {:error, :unsupported_qos}
+      :at_most_once -> {:ok, @at_most_once}
+      :at_least_once -> {:ok, @at_least_once}
+      :exactly_once -> {:ok, @exactly_once}
+      _ -> {:error, :qos_not_supported}
     end
   end
 end

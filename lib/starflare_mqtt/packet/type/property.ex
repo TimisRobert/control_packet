@@ -1,7 +1,8 @@
-defmodule StarflareMqtt.Packet.Property do
+defmodule StarflareMqtt.Packet.Type.Property do
   @moduledoc false
 
   alias StarflareMqtt.Packet.Type.{
+    Qos,
     Vbi,
     Byte,
     Utf8,
@@ -38,6 +39,10 @@ defmodule StarflareMqtt.Packet.Property do
   @wildcard_subscription_available 0x28
   @subscription_identifier_available 0x29
   @shared_subscription_available 0x2A
+
+  def decode(<<>>) do
+    {:ok, nil, nil}
+  end
 
   def decode(data) do
     with {:ok, vbi, rest} <- Vbi.decode(data) do
@@ -167,20 +172,21 @@ defmodule StarflareMqtt.Packet.Property do
   end
 
   defp decode(<<@maximum_qos, data::binary>>, list) do
-    with {:ok, data, rest} <- Byte.decode(data) do
-      decode(rest, [{:topic_alias, data} | list])
+    with {:ok, data, rest} <- Byte.decode(data),
+         {:ok, qos} <- Qos.decode(data) do
+      decode(rest, [{:maximum_qos, qos} | list])
     end
   end
 
   defp decode(<<@retain_available, data::binary>>, list) do
     with {:ok, data, rest} <- Byte.decode(data) do
-      decode(rest, [{:topic_alias, data} | list])
+      decode(rest, [{:retain_available, data} | list])
     end
   end
 
   defp decode(<<@user_property, data::binary>>, list) do
     with {:ok, data, rest} <- Utf8Pair.decode(data) do
-      decode(rest, [{:user_property, [data]} | list])
+      decode(rest, [{:user_property, data} | list])
     end
   end
 
@@ -209,7 +215,7 @@ defmodule StarflareMqtt.Packet.Property do
   end
 
   defp decode(<<_>>, _) do
-    {:error, :decode_error}
+    {:error, :malformed_packet}
   end
 
   defp decode(<<>>, list) do
@@ -217,20 +223,22 @@ defmodule StarflareMqtt.Packet.Property do
       list
       |> Keyword.pop_values(:user_property)
 
-    user_properties = user_properties |> Enum.reduce([], &Keyword.merge/2)
-
-    Keyword.put(list, :user_property, user_properties)
+    case Enum.into(user_properties, %{}) do
+      map when map_size(map) == 0 -> list
+      _ -> Keyword.put(list, :user_properties, user_properties)
+    end
+    |> Enum.into(%{})
   end
 
-  def encode(list) do
+  def encode(map) do
     data =
-      for value <- list, into: <<>> do
+      for value <- map, into: <<>> do
         {:ok, data} = do_encode(value)
         data
       end
 
     with {:ok, vbi} <- Vbi.encode(byte_size(data)) do
-      {:ok, <<vbi::binary, data::binary>>}
+      {:ok, vbi <> <<data::binary>>}
     end
   end
 
@@ -355,7 +363,8 @@ defmodule StarflareMqtt.Packet.Property do
   end
 
   defp do_encode({:maximum_qos, value}) do
-    with {:ok, data} <- Byte.encode(value) do
+    with {:ok, value} <- Qos.encode(value),
+         {:ok, data} <- Byte.encode(value) do
       {:ok, <<@maximum_qos>> <> data}
     end
   end
@@ -366,13 +375,13 @@ defmodule StarflareMqtt.Packet.Property do
     end
   end
 
-  defp do_encode({:user_property, []}) do
+  defp do_encode({:user_properties, map}) when map_size(map) == 0 do
     {:ok, <<>>}
   end
 
-  defp do_encode({:user_property, values}) do
+  defp do_encode({:user_properties, map}) do
     data =
-      for value <- values, into: <<>> do
+      for value <- map, into: <<>> do
         {:ok, data} = Utf8Pair.encode(value)
         data
       end
