@@ -40,14 +40,16 @@ defmodule StarflareMqtt.Packet.Type.Property do
   @subscription_identifier_available 0x29
   @shared_subscription_available 0x2A
 
-  def decode(<<>>) do
-    {:ok, nil, nil}
-  end
+  def decode(<<>>), do: {:ok, nil, nil}
 
   def decode(data) do
     with {:ok, vbi, rest} <- Vbi.decode(data) do
-      <<properties::binary-size(vbi), rest::binary>> = rest
-      {:ok, decode(properties, []), rest}
+      if vbi > 0 do
+        <<properties::binary-size(vbi), rest::binary>> = rest
+        {:ok, decode(properties, []), rest}
+      else
+        {:ok, nil, rest}
+      end
     end
   end
 
@@ -223,12 +225,14 @@ defmodule StarflareMqtt.Packet.Type.Property do
       list
       |> Keyword.pop_values(:user_property)
 
-    case Enum.into(user_properties, %{}) do
-      map when map_size(map) == 0 -> list
-      _ -> Keyword.put(list, :user_properties, user_properties)
+    case user_properties do
+      [] -> list
+      user_properties -> Keyword.put(list, :user_properties, Enum.into(user_properties, %{}))
     end
     |> Enum.into(%{})
   end
+
+  def encode(nil), do: {:ok, <<0x00>>}
 
   def encode(map) do
     data =
@@ -238,7 +242,7 @@ defmodule StarflareMqtt.Packet.Type.Property do
       end
 
     with {:ok, vbi} <- Vbi.encode(byte_size(data)) do
-      {:ok, vbi <> <<data::binary>>}
+      {:ok, vbi <> data}
     end
   end
 

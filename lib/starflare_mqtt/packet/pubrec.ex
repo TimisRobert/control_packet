@@ -1,5 +1,6 @@
 defmodule StarflareMqtt.Packet.Pubrec do
   @moduledoc false
+
   alias StarflareMqtt.Packet.Type.{Property, ReasonCode, TwoByte}
 
   defstruct [:packet_identifier, :reason_code, :properties]
@@ -25,11 +26,11 @@ defmodule StarflareMqtt.Packet.Pubrec do
     } = puback
 
     with {:ok, data} <- Property.encode(properties),
-         encoded_data <- <<data::binary>>,
+         encoded_data <- data,
          {:ok, data} <- ReasonCode.encode(__MODULE__, reason_code),
-         encoded_data <- <<data::binary>> <> encoded_data,
+         encoded_data <- data <> encoded_data,
          {:ok, data} <- TwoByte.encode(packet_identifier),
-         encoded_data <- <<data::binary>> <> encoded_data do
+         encoded_data <- data <> encoded_data do
       {:ok, encoded_data}
     end
   end

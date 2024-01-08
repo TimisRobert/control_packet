@@ -59,7 +59,7 @@ defmodule StarflareMqtt.Packet.Connect do
     end
   end
 
-  def decode(_), do: {:error, :decode_error}
+  def decode(_), do: {:error, :unsupported_protocol_error}
 
   def encode(%__MODULE__{} = packet) do
     %__MODULE__{
@@ -72,20 +72,19 @@ defmodule StarflareMqtt.Packet.Connect do
     } = packet
 
     with {:ok, data} <- encode_string(password),
-         encoded_data <- <<data::binary>>,
+         encoded_data <- data,
          {:ok, data} <- encode_string(username),
-         encoded_data <- <<data::binary>> <> encoded_data,
+         encoded_data <- data <> encoded_data,
          {:ok, data} <- encode_will(will),
-         encoded_data <- <<data::binary>> <> encoded_data,
+         encoded_data <- data <> encoded_data,
          {:ok, data} <- Utf8.encode(clientid),
-         encoded_data <- <<data::binary>> <> encoded_data,
+         encoded_data <- data <> encoded_data,
          {:ok, data} <- Property.encode(properties),
-         encoded_data <- <<data::binary>> <> encoded_data,
+         encoded_data <- data <> encoded_data,
          {:ok, data} <- TwoByte.encode(keep_alive),
-         encoded_data <- <<data::binary>> <> encoded_data,
+         encoded_data <- data <> encoded_data,
          {:ok, data} <- encode_flags(packet),
-         encoded_data <- <<data::binary>> <> encoded_data,
-         encoded_data <- @header <> encoded_data do
+         encoded_data <- @header <> data <> encoded_data do
       {:ok, encoded_data}
     end
   end
@@ -94,11 +93,11 @@ defmodule StarflareMqtt.Packet.Connect do
 
   defp encode_will(will) do
     with {:ok, data} <- Binary.encode(will.payload),
-         encoded_data <- <<data::binary>>,
+         encoded_data <- data,
          {:ok, data} <- Utf8.encode(will.topic),
-         encoded_data <- <<data::binary>> <> encoded_data,
+         encoded_data <- data <> encoded_data,
          {:ok, data} <- Property.encode(will.properties),
-         encoded_data <- <<data::binary>> <> encoded_data do
+         encoded_data <- data <> encoded_data do
       {:ok, encoded_data}
     end
   end

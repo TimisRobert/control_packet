@@ -25,9 +25,9 @@ defmodule StarflareMqtt.Packet.Connack do
     } = connack
 
     with {:ok, data} <- Property.encode(properties),
-         encoded_data <- <<data::binary>>,
+         encoded_data <- data,
          {:ok, data} <- ReasonCode.encode(__MODULE__, reason_code),
-         encoded_data <- <<data::binary>> <> encoded_data,
+         encoded_data <- data <> encoded_data,
          {:ok, data} <- Boolean.encode(session_present),
          encoded_data <- <<0::7, data::1>> <> encoded_data do
       {:ok, encoded_data}

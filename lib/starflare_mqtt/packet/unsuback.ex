@@ -30,7 +30,7 @@ defmodule StarflareMqtt.Packet.Unsuback do
 
   defp encode_reason_codes([code | list], encoded_data) do
     with {:ok, data} <- ReasonCode.encode(__MODULE__, code) do
-      encode_reason_codes(list, <<data::binary>> <> encoded_data)
+      encode_reason_codes(list, data <> encoded_data)
     end
   end
 
@@ -42,11 +42,11 @@ defmodule StarflareMqtt.Packet.Unsuback do
     } = puback
 
     with {:ok, data} <- encode_reason_codes(reason_codes, <<>>),
-         encoded_data <- <<data::binary>>,
+         encoded_data <- data,
          {:ok, data} <- Property.encode(properties),
-         encoded_data <- <<data::binary>> <> encoded_data,
+         encoded_data <- data <> encoded_data,
          {:ok, data} <- TwoByte.encode(packet_identifier),
-         encoded_data <- <<data::binary>> <> encoded_data do
+         encoded_data <- data <> encoded_data do
       {:ok, encoded_data}
     end
   end

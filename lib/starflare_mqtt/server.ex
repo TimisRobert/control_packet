@@ -15,23 +15,24 @@ defmodule StarflareMqtt.Server do
     {:ok, connack} =
       StarflareMqtt.Packet.encode(%Connack{
         session_present: false,
-        reason_code: :success,
-        properties: []
+        reason_code: :success
       })
 
     with :ok <- :gen_tcp.send(client, connack),
          {:ok, data} <- :gen_tcp.recv(client, 0) do
+      Logger.info("raw second packet: #{inspect(data)}")
       {:ok, command} = StarflareMqtt.Packet.decode(data)
       Logger.info("second packet: #{inspect(command)}")
 
       {:ok, command} = StarflareMqtt.Packet.encode(command)
-      Logger.info("raw second packet: #{inspect(command)}")
+      Logger.info("second packet re encoded: #{inspect(command)}")
 
       {:ok, command} = StarflareMqtt.Packet.decode(command)
-      Logger.info("second packet re encoded: #{inspect(command)}")
+      Logger.info("second packet re decoded: #{inspect(command)}")
     end
 
     with {:ok, data} <- :gen_tcp.recv(client, 0) do
+      Logger.info("raw third packet: #{inspect(data)}")
       {:ok, command} = StarflareMqtt.Packet.decode(data)
       Logger.info("third packet: #{inspect(command)}")
     end

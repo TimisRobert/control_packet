@@ -1,5 +1,6 @@
 defmodule StarflareMqtt.Packet.Disconnect do
   @moduledoc false
+
   alias StarflareMqtt.Packet.Type.{Property, ReasonCode}
 
   defstruct [:reason_code, :properties]
@@ -24,9 +25,9 @@ defmodule StarflareMqtt.Packet.Disconnect do
     } = disconnect
 
     with {:ok, data} <- ReasonCode.encode(__MODULE__, reason_code),
-         encoded_data <- <<data::binary>>,
+         encoded_data <- data,
          {:ok, data} <- Property.encode(properties),
-         encoded_data <- <<data::binary>> <> encoded_data do
+         encoded_data <- data <> encoded_data do
       {:ok, encoded_data}
     end
   end

@@ -127,6 +127,8 @@ defmodule StarflareMqtt.Packet do
     end
   end
 
+  def decode(_), do: {:error, :malformed_packet}
+
   def encode(%Connect{} = connect) do
     with {:ok, packet} <- Connect.encode(connect),
          {:ok, vbi} <- Vbi.encode(byte_size(packet)) do

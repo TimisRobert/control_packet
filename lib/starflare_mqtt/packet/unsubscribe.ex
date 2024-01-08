@@ -3,7 +3,7 @@ defmodule StarflareMqtt.Packet.Unsubscribe do
 
   alias StarflareMqtt.Packet.Type.{Property, Utf8, TwoByte}
 
-  defstruct [:packet_identifier, :properties, :topic_filters]
+  defstruct [:packet_identifier, :topic_filters, :properties]
 
   def decode(data) do
     with {:ok, packet_identifier, rest} <- TwoByte.decode(data),
@@ -30,7 +30,7 @@ defmodule StarflareMqtt.Packet.Unsubscribe do
 
   defp encode_topic_filters([topic_filter | list], encoded_data) do
     with {:ok, data} <- Utf8.encode(topic_filter) do
-      encode_topic_filters(list, <<data::binary>> <> encoded_data)
+      encode_topic_filters(list, data <> encoded_data)
     end
   end
 
@@ -42,11 +42,11 @@ defmodule StarflareMqtt.Packet.Unsubscribe do
     } = puback
 
     with {:ok, data} <- encode_topic_filters(topic_filters, <<>>),
-         encoded_data <- <<data::binary>>,
+         encoded_data <- data,
          {:ok, data} <- Property.encode(properties),
-         encoded_data <- <<data::binary>> <> encoded_data,
+         encoded_data <- data <> encoded_data,
          {:ok, data} <- TwoByte.encode(packet_identifier),
-         encoded_data <- <<data::binary>> <> encoded_data do
+         encoded_data <- data <> encoded_data do
       {:ok, encoded_data}
     end
   end

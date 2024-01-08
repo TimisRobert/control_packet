@@ -3,7 +3,7 @@ defmodule StarflareMqtt.Packet.Subscribe do
 
   alias StarflareMqtt.Packet.Type.{Property, RetainHandling, Boolean, Qos, Utf8, TwoByte}
 
-  defstruct [:packet_identifier, :properties, :topic_filters]
+  defstruct [:packet_identifier, :topic_filters, :properties]
 
   def decode(data) do
     with {:ok, packet_identifier, rest} <- TwoByte.decode(data),
@@ -18,7 +18,7 @@ defmodule StarflareMqtt.Packet.Subscribe do
     end
   end
 
-  defp decode_topic_filters(<<>>, topic_filters), do: {:ok, Enum.into(topic_filters, %{})}
+  defp decode_topic_filters(<<>>, topic_filters), do: {:ok, Enum.reverse(topic_filters)}
 
   defp decode_topic_filters(data, topic_filters) do
     with {:ok, topic_filter, rest} <- Utf8.decode(data),
@@ -50,27 +50,25 @@ defmodule StarflareMqtt.Packet.Subscribe do
       topic_filters: topic_filters
     } = puback
 
-    with {:ok, data} <- encode_topic_filters(topic_filters),
-         encoded_data <- <<data::binary>>,
+    with {:ok, data} <- encode_topic_filters(topic_filters, <<>>),
+         encoded_data <- data,
          {:ok, data} <- Property.encode(properties),
-         encoded_data <- <<data::binary>> <> encoded_data,
+         encoded_data <- data <> encoded_data,
          {:ok, data} <- TwoByte.encode(packet_identifier),
-         encoded_data <- <<data::binary>> <> encoded_data do
+         encoded_data <- data <> encoded_data do
       {:ok, encoded_data}
     end
   end
 
-  defp encode_topic_filters(topic_filters) do
-    data =
-      for {key, value} <- topic_filters, into: <<>> do
-        with {:ok, data} <- encode_subscription_options(value),
-             encoded_data <- <<data::binary>>,
-             {:ok, data} <- Utf8.encode(key) do
-          <<data::binary>> <> encoded_data
-        end
-      end
+  defp encode_topic_filters([], encoded_data), do: {:ok, encoded_data}
 
-    {:ok, data}
+  defp encode_topic_filters([{key, value} | list], encoded_data) do
+    with {:ok, data} <- Utf8.encode(key),
+         encoded_data <- encoded_data <> data,
+         {:ok, data} <- encode_subscription_options(value),
+         encoded_data <- encoded_data <> data do
+      encode_topic_filters(list, encoded_data)
+    end
   end
 
   defp encode_subscription_options(subscription_options) do

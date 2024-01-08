@@ -60,11 +60,11 @@ defmodule StarflareMqtt.Packet.Publish do
     } = publish
 
     with {:ok, data} <- Property.encode(properties),
-         encoded_data <- <<data::binary>> <> payload,
+         encoded_data <- data <> payload,
          {:ok, data} <- encode_packet_identifier(qos_level, packet_identifier),
-         encoded_data <- <<data::binary>> <> encoded_data,
+         encoded_data <- data <> encoded_data,
          {:ok, data} <- Utf8.encode(topic_name),
-         encoded_data <- <<data::binary>> <> encoded_data,
+         encoded_data <- data <> encoded_data,
          {:ok, flags} <- encode_flags(dup_flag, qos_level, retain) do
       {:ok, encoded_data, flags}
     end
