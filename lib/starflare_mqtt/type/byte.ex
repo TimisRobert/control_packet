@@ -1,4 +1,4 @@
-defmodule StarflareMqtt.Packet.Type.Byte do
+defmodule StarflareMqtt.Type.Byte do
   @moduledoc false
 
   def decode(<<data, rest::binary>>), do: {:ok, data, rest}

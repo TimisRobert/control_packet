@@ -1,7 +1,7 @@
-defmodule StarflareMqtt.Packet.Unsuback do
+defmodule StarflareMqtt.Suback do
   @moduledoc false
 
-  alias StarflareMqtt.Packet.Type.{Property, ReasonCode, TwoByte}
+  alias StarflareMqtt.Type.{Property, ReasonCode, TwoByte}
 
   defstruct [:packet_identifier, :reason_codes, :properties]
 
@@ -18,7 +18,7 @@ defmodule StarflareMqtt.Packet.Unsuback do
     end
   end
 
-  defp decode_reason_codes(<<>>, list), do: {:ok, list}
+  defp decode_reason_codes(<<>>, list), do: {:ok, Enum.reverse(list)}
 
   defp decode_reason_codes(data, list) do
     with {:ok, code, rest} <- ReasonCode.decode(__MODULE__, data) do
@@ -30,7 +30,7 @@ defmodule StarflareMqtt.Packet.Unsuback do
 
   defp encode_reason_codes([code | list], encoded_data) do
     with {:ok, data} <- ReasonCode.encode(__MODULE__, code) do
-      encode_reason_codes(list, data <> encoded_data)
+      encode_reason_codes(list, encoded_data <> data)
     end
   end
 

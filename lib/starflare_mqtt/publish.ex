@@ -1,7 +1,7 @@
-defmodule StarflareMqtt.Packet.Publish do
+defmodule StarflareMqtt.Publish do
   @moduledoc false
 
-  alias StarflareMqtt.Packet.Type.{
+  alias StarflareMqtt.Type.{
     TwoByte,
     Property,
     Utf8,

@@ -1,7 +1,7 @@
-defmodule StarflareMqtt.Packet.Type.Property do
+defmodule StarflareMqtt.Type.Property do
   @moduledoc false
 
-  alias StarflareMqtt.Packet.Type.{
+  alias StarflareMqtt.Type.{
     Qos,
     Vbi,
     Byte,

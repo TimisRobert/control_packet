@@ -1,4 +1,4 @@
-defmodule StarflareMqtt.Packet.Type.Boolean do
+defmodule StarflareMqtt.Type.Boolean do
   @moduledoc false
 
   def decode(integer), do: {:ok, integer == 1}

@@ -1,7 +1,7 @@
-defmodule StarflareMqtt.Packet.Subscribe do
+defmodule StarflareMqtt.Subscribe do
   @moduledoc false
 
-  alias StarflareMqtt.Packet.Type.{Property, RetainHandling, Boolean, Qos, Utf8, TwoByte}
+  alias StarflareMqtt.Type.{Property, RetainHandling, Boolean, Qos, Utf8, TwoByte}
 
   defstruct [:packet_identifier, :topic_filters, :properties]
 

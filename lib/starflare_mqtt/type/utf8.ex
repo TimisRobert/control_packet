@@ -1,4 +1,4 @@
-defmodule StarflareMqtt.Packet.Type.Utf8 do
+defmodule StarflareMqtt.Type.Utf8 do
   @moduledoc false
 
   def decode(<<length::16, data::binary-size(length), rest::binary>>),

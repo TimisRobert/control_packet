@@ -1,4 +1,4 @@
-defmodule StarflareMqtt.Packet.Type.Qos do
+defmodule StarflareMqtt.Type.Qos do
   @moduledoc false
 
   @at_most_once 0

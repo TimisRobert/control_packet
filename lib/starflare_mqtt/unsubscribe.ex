@@ -1,7 +1,7 @@
-defmodule StarflareMqtt.Packet.Unsubscribe do
+defmodule StarflareMqtt.Unsubscribe do
   @moduledoc false
 
-  alias StarflareMqtt.Packet.Type.{Property, Utf8, TwoByte}
+  alias StarflareMqtt.Type.{Property, Utf8, TwoByte}
 
   defstruct [:packet_identifier, :topic_filters, :properties]
 

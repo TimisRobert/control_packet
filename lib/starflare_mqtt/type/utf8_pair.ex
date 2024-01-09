@@ -1,4 +1,4 @@
-defmodule StarflareMqtt.Packet.Type.Utf8Pair do
+defmodule StarflareMqtt.Type.Utf8Pair do
   @moduledoc false
 
   def decode(<<

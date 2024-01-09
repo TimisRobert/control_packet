@@ -1,4 +1,4 @@
-defmodule StarflareMqtt.Packet.Type.Vbi do
+defmodule StarflareMqtt.Type.Vbi do
   @moduledoc false
 
   import Bitwise

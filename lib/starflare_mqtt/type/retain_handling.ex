@@ -1,4 +1,4 @@
-defmodule StarflareMqtt.Packet.Type.RetainHandling do
+defmodule StarflareMqtt.Type.RetainHandling do
   @moduledoc false
 
   @send_when_subscribed 0
