@@ -234,15 +234,18 @@ defmodule StarflareMqtt.Type.Property do
 
   def encode(nil), do: {:ok, <<0x00>>}
 
-  def encode(map) do
-    data =
-      for value <- map, into: <<>> do
-        {:ok, data} = do_encode(value)
-        data
-      end
+  def encode(properties) do
+    with {:ok, encoded_data} <- encode(Map.to_list(properties), <<>>),
+         {:ok, vbi} <- Vbi.encode(byte_size(encoded_data)) do
+      {:ok, vbi <> encoded_data}
+    end
+  end
 
-    with {:ok, vbi} <- Vbi.encode(byte_size(data)) do
-      {:ok, vbi <> data}
+  def encode([], encoded_data), do: {:ok, encoded_data}
+
+  def encode([elem | list], encoded_data) do
+    with {:ok, data} <- do_encode(elem) do
+      encode(list, data <> encoded_data)
     end
   end
 
@@ -379,20 +382,6 @@ defmodule StarflareMqtt.Type.Property do
     end
   end
 
-  defp do_encode({:user_properties, map}) when map_size(map) == 0 do
-    {:ok, <<>>}
-  end
-
-  defp do_encode({:user_properties, map}) do
-    data =
-      for value <- map, into: <<>> do
-        {:ok, data} = Utf8Pair.encode(value)
-        data
-      end
-
-    {:ok, <<@user_property>> <> data}
-  end
-
   defp do_encode({:maximum_packet_size, value}) do
     with {:ok, data} <- FourByte.encode(value) do
       {:ok, <<@maximum_packet_size>> <> data}
@@ -414,6 +403,24 @@ defmodule StarflareMqtt.Type.Property do
   defp do_encode({:shared_subscription_available, value}) do
     with {:ok, data} <- Byte.encode(value) do
       {:ok, <<@shared_subscription_available>> <> data}
+    end
+  end
+
+  defp do_encode({:user_properties, map}) when map_size(map) == 0 do
+    {:ok, <<>>}
+  end
+
+  defp do_encode({:user_properties, map}) do
+    with {:ok, data} <- do_encode_user_property(Map.to_list(map), <<>>) do
+      {:ok, <<@user_property>> <> data}
+    end
+  end
+
+  defp do_encode_user_property([], encoded_data), do: {:ok, encoded_data}
+
+  defp do_encode_user_property([value | list], encoded_data) do
+    with {:ok, data} <- Utf8Pair.encode(value) do
+      do_encode_user_property(list, data <> encoded_data)
     end
   end
 end

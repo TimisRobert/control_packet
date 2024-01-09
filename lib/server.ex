@@ -1,6 +1,9 @@
 defmodule Server do
   @moduledoc false
+  alias StarflareMqtt.Disconnect
   alias StarflareMqtt.Connack
+
+  import StarflareMqtt.Type.ReasonCode
 
   require Logger
 
@@ -29,6 +32,14 @@ defmodule Server do
 
       {:ok, command} = StarflareMqtt.decode(command)
       Logger.info("second packet re decoded: #{inspect(command)}")
+    else
+      {:error, error} when is_reason_code(error) ->
+        {:ok, disconnect} =
+          StarflareMqtt.encode(%Disconnect{
+            reason_code: error
+          })
+
+        :gen_tcp.send(client, disconnect)
     end
 
     with {:ok, data} <- :gen_tcp.recv(client, 0) do

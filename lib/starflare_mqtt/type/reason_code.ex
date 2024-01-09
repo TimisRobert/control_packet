@@ -59,6 +59,55 @@ defmodule StarflareMqtt.Type.ReasonCode do
   @subscription_identifiers_not_supported 0xA1
   @wildcard_subscriptions_not_supported 0xA2
 
+  defguard is_reason_code(reason_code)
+           when reason_code in [
+                  :success,
+                  :normal_disconnection,
+                  :granted_qos_0,
+                  :granted_qos_1,
+                  :granted_qos_2,
+                  :disconnect_with_will_message,
+                  :no_matching_subscribers,
+                  :no_subscription_existed,
+                  :continue_authentication,
+                  :re_authenticate,
+                  :unspecified_error,
+                  :malformed_packet,
+                  :protocol_error,
+                  :implementation_specific_error,
+                  :unsupported_protocol_error,
+                  :client_identifier_not_valid,
+                  :bad_username_or_password,
+                  :not_authorized,
+                  :server_unavailable,
+                  :server_busy,
+                  :banned,
+                  :server_shutting_down,
+                  :bad_authentication_method,
+                  :keep_alive_timeout,
+                  :session_taken_over,
+                  :topic_filter_invalid,
+                  :topic_name_invalid,
+                  :packet_identifier_in_use,
+                  :packet_identifier_not_found,
+                  :receive_maximum_exceeded,
+                  :topic_alias_invalid,
+                  :packet_too_large,
+                  :message_rate_too_high,
+                  :quota_exceeded,
+                  :administrative_action,
+                  :payload_format_invalid,
+                  :retain_not_supported,
+                  :qos_not_supported,
+                  :use_another_server,
+                  :server_moved,
+                  :shared_subscriptions_not_supported,
+                  :connection_rate_exceeded,
+                  :maximum_connect_time,
+                  :subscription_identifiers_not_supported,
+                  :wildcard_subscriptions_not_supported
+                ]
+
   def decode(module, <<@success, rest::binary>>)
       when module in [Connack, Puback, Pubrec, Pubrel, Pubcomp, Unsuback, Auth],
       do: {:ok, :success, rest}

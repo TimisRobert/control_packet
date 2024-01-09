@@ -136,85 +136,97 @@ defmodule StarflareMqtt do
     end
   end
 
-  def encode(%Connack{} = connect) do
-    with {:ok, packet} <- Connack.encode(connect),
+  def encode(%Connack{} = connack) do
+    with {:ok, packet} <- Connack.encode(connack),
          {:ok, vbi} <- Vbi.encode(byte_size(packet)) do
       {:ok, <<@connack::4, 0::4, vbi::binary>> <> packet}
     end
   end
 
-  def encode(%Publish{} = connect) do
-    with {:ok, packet, flags} <- Publish.encode(connect),
+  def encode(%Publish{} = publish) do
+    with {:ok, packet, flags} <- Publish.encode(publish),
          {:ok, vbi} <- Vbi.encode(byte_size(packet)) do
       {:ok, <<@publish::4, flags::bitstring, vbi::binary>> <> packet}
     end
   end
 
-  def encode(%Puback{} = connect) do
-    with {:ok, packet} <- Puback.encode(connect),
+  def encode(%Puback{} = puback) do
+    with {:ok, packet} <- Puback.encode(puback),
          {:ok, vbi} <- Vbi.encode(byte_size(packet)) do
       {:ok, <<@puback::4, 0::4, vbi::binary>> <> packet}
     end
   end
 
-  def encode(%Pubrec{} = connect) do
-    with {:ok, packet} <- Pubrec.encode(connect),
+  def encode(%Pubrec{} = pubrec) do
+    with {:ok, packet} <- Pubrec.encode(pubrec),
          {:ok, vbi} <- Vbi.encode(byte_size(packet)) do
       {:ok, <<@pubrec::4, 0::4, vbi::binary>> <> packet}
     end
   end
 
-  def encode(%Pubrel{} = connect) do
-    with {:ok, packet} <- Pubrel.encode(connect),
+  def encode(%Pubrel{} = pubrel) do
+    with {:ok, packet} <- Pubrel.encode(pubrel),
          {:ok, vbi} <- Vbi.encode(byte_size(packet)) do
       {:ok, <<@pubrel::4, 2::4, vbi::binary>> <> packet}
     end
   end
 
-  def encode(%Pubcomp{} = connect) do
-    with {:ok, packet} <- Pubcomp.encode(connect),
+  def encode(%Pubcomp{} = pubcomp) do
+    with {:ok, packet} <- Pubcomp.encode(pubcomp),
          {:ok, vbi} <- Vbi.encode(byte_size(packet)) do
       {:ok, <<@pubcomp::4, 0::4, vbi::binary>> <> packet}
     end
   end
 
-  def encode(%Subscribe{} = connect) do
-    with {:ok, packet} <- Subscribe.encode(connect),
+  def encode(%Subscribe{} = subscribe) do
+    with {:ok, packet} <- Subscribe.encode(subscribe),
          {:ok, vbi} <- Vbi.encode(byte_size(packet)) do
       {:ok, <<@subscribe::4, 2::4, vbi::binary>> <> packet}
     end
   end
 
-  def encode(%Suback{} = connect) do
-    with {:ok, packet} <- Suback.encode(connect),
+  def encode(%Suback{} = suback) do
+    with {:ok, packet} <- Suback.encode(suback),
          {:ok, vbi} <- Vbi.encode(byte_size(packet)) do
       {:ok, <<@suback::4, 0::4, vbi::binary>> <> packet}
     end
   end
 
-  def encode(%Unsubscribe{} = connect) do
-    with {:ok, packet} <- Unsubscribe.encode(connect),
+  def encode(%Unsubscribe{} = unsubscribe) do
+    with {:ok, packet} <- Unsubscribe.encode(unsubscribe),
          {:ok, vbi} <- Vbi.encode(byte_size(packet)) do
       {:ok, <<@unsubscribe::4, 2::4, vbi::binary>> <> packet}
     end
   end
 
-  def encode(%Pingreq{} = connect) do
-    with {:ok, packet} <- Pingreq.encode(connect),
+  def encode(%Pingreq{} = pingreq) do
+    with {:ok, packet} <- Pingreq.encode(pingreq),
          {:ok, vbi} <- Vbi.encode(byte_size(packet)) do
       {:ok, <<@pingreq::4, 0::4, vbi::binary>> <> packet}
     end
   end
 
-  def encode(%Pingresp{} = connect) do
-    with {:ok, packet} <- Pingresp.encode(connect),
+  def encode(%Pingresp{} = pingresp) do
+    with {:ok, packet} <- Pingresp.encode(pingresp),
          {:ok, vbi} <- Vbi.encode(byte_size(packet)) do
       {:ok, <<@pingresp::4, 0::4, vbi::binary>> <> packet}
     end
   end
 
-  def encode(%Auth{} = connect) do
-    with {:ok, packet} <- Auth.encode(connect),
+  def encode(%Disconnect{} = disconnect) do
+    with {:ok, packet} <- Disconnect.encode(disconnect) do
+      if byte_size(packet) == 0 do
+        with {:ok, vbi} <- Vbi.encode(byte_size(packet)) do
+          {:ok, <<@disconnect::4, 0::4, vbi::binary>> <> packet}
+        end
+      else
+        {:ok, <<@disconnect::4, 0::4>>}
+      end
+    end
+  end
+
+  def encode(%Auth{} = auth) do
+    with {:ok, packet} <- Auth.encode(auth),
          {:ok, vbi} <- Vbi.encode(byte_size(packet)) do
       {:ok, <<@auth::4, 0::4, vbi::binary>> <> packet}
     end

@@ -1,7 +1,5 @@
 defmodule StarflareMqtt.Connect do
-  @moduledoc """
-  Connect packet
-  """
+  @moduledoc false
 
   alias StarflareMqtt.Type.{
     TwoByte,
