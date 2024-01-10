@@ -17,13 +17,13 @@ defmodule StarflareMqtt.Connect do
   defstruct [
     :clientid,
     :properties,
-    :will_retain,
-    :will_qos,
     :clean_start,
     :will,
     :username,
     :password,
-    :keep_alive
+    :keep_alive,
+    will_retain: false,
+    will_qos: :at_most_once
   ]
 
   def decode(<<@header, rest::binary>>) do
@@ -100,7 +100,6 @@ defmodule StarflareMqtt.Connect do
     end
   end
 
-  defp encode_string(nil), do: {:ok, <<0::16>>}
   defp encode_string(string), do: Utf8.encode(string)
 
   defp decode_string(true, data), do: Utf8.decode(data)
@@ -142,6 +141,10 @@ defmodule StarflareMqtt.Connect do
          clean_start
        }, rest}
     end
+  end
+
+  defp decode_flags(<<_::7, 1::1, _::binary>>) do
+    {:error, :malformed_packet}
   end
 
   defp encode_flags(%__MODULE__{} = packet) do
