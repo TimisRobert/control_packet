@@ -7,8 +7,9 @@ defmodule StarflareMqtt.Type.Utf8Pair do
         value_length::16,
         value_data::binary-size(value_length),
         rest::binary
-      >>),
-      do: {:ok, {to_string(key_data), to_string(value_data)}, rest}
+      >>) do
+    {:ok, {to_string(key_data), to_string(value_data)}, rest}
+  end
 
   def decode(_), do: {:error, :malformed_packet}
 

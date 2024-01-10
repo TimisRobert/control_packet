@@ -22,7 +22,7 @@ defmodule StarflareMqtt.Type.Vbi do
   defp decode(_, _, _), do: {:error, :malformed_packet}
 
   def encode(integer), do: encode(integer, <<>>)
-  defp encode(0, <<>>), do: {:ok, <<0>>}
+  defp encode(0, <<>>), do: {:ok, <<0x00>>}
   defp encode(0, data), do: {:ok, data}
 
   defp encode(integer, data) do
