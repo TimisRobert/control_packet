@@ -25,6 +25,10 @@ defmodule StarflareMqtt.Client.Connection do
     :gen_statem.start_link(__MODULE__, {host, port, username, password}, opts)
   end
 
+  def send(pid, packet) do
+    :gen_statem.call(pid, {:send, packet})
+  end
+
   @impl true
   def init({host, port, username, password}) do
     data = %__MODULE__{
@@ -61,8 +65,7 @@ defmodule StarflareMqtt.Client.Connection do
     opts = [:binary, packet: :raw, active: :once]
 
     with {:ok, socket} <- :gen_tcp.connect(to_charlist(host), port, opts),
-         {:ok, packet} <- Packet.encode(connect),
-         :ok <- :gen_tcp.send(socket, packet) do
+         :ok <- send_packet(socket, connect) do
       data =
         data
         |> Map.put(:socket, socket)
@@ -79,7 +82,7 @@ defmodule StarflareMqtt.Client.Connection do
     :inet.setopts(socket, active: :once)
 
     case Packet.decode(packet) do
-      {:ok, packet} -> handle_connecting_packet(packet, data)
+      {:ok, packet} -> handle_packet(packet, data)
       {:error, error} -> {:stop, error}
     end
   end
@@ -90,73 +93,69 @@ defmodule StarflareMqtt.Client.Connection do
   end
 
   def handle_event(:timeout, :ping, :connected, %{socket: socket} = data) do
-    pingreq = %Packet.Pingreq{}
-
-    with {:ok, packet} <- Packet.encode(pingreq),
-         :ok <- :gen_tcp.send(socket, packet) do
-      {:next_state, :connecting, data}
+    case send_packet(socket, %Packet.Pingreq{}) do
+      :ok -> {:next_state, :connecting, data}
+      error -> {:stop, error}
     end
   end
 
-  def handle_event({:call, from}, {:send, data}, :connected, %{socket: socket}) do
-    with {:ok, packet} <- Packet.encode(data),
-         :ok <- :gen_tcp.send(socket, packet) do
-      {:keep_state_and_data, {:reply, from, :ok}}
-    else
+  def handle_event({:call, from}, {:send, packet}, :connected, %{socket: socket} = data) do
+    keep_alive = Map.get(data, :keep_alive)
+
+    case send_packet(socket, packet) do
+      :ok ->
+        {:keep_state_and_data,
+         [{:reply, from, :ok}, {:timeout, :timer.seconds(keep_alive), :ping}]}
+
       error ->
-        {:keep_state_and_data, {:reply, from, {:error, error}}}
+        {:keep_state_and_data,
+         [{:reply, from, {:error, error}}, {:timeout, :timer.seconds(keep_alive), :ping}]}
     end
   end
 
-  def handle_event({:call, from}, {:send, data}, state, %{socket: socket})
-      when state in [:connecting, :disconnected] do
-    with {:ok, packet} <- Packet.encode(data),
-         :ok <- :gen_tcp.send(socket, packet) do
-      {:keep_state_and_data, {:reply, from, :ok}, [{:postpone}]}
-    else
-      error ->
-        {:keep_state_and_data, {:reply, from, {:error, error}}}
+  defp send_packet(socket, packet) do
+    with {:ok, packet} <- Packet.encode(packet) do
+      :gen_tcp.send(socket, packet)
     end
   end
 
-  defp handle_connecting_packet(packet, data) do
-    case packet do
-      %Packet.Connack{reason_code: :success} = connack ->
-        %Packet.Connack{properties: properties} = connack
+  defp handle_packet(%Packet.Connack{reason_code: :success} = connack, data) do
+    %Packet.Connack{properties: properties} = connack
 
-        data =
-          data
-          |> Map.put(:properties, properties)
+    data =
+      data
+      |> Map.put(:properties, properties)
 
-        assigned_client_identifier = Map.get(properties, :assigned_client_identifier)
+    assigned_client_identifier = Map.get(properties, :assigned_client_identifier)
 
-        data =
-          if assigned_client_identifier do
-            data
-            |> Map.put(:clientid, assigned_client_identifier)
-          else
-            data
-          end
+    data =
+      if assigned_client_identifier do
+        data
+        |> Map.put(:clientid, assigned_client_identifier)
+      else
+        data
+      end
 
-        server_keep_alive = Map.get(properties, :server_keep_alive)
+    server_keep_alive = Map.get(properties, :server_keep_alive)
 
-        data =
-          if server_keep_alive do
-            data
-            |> Map.put(:keep_alive, server_keep_alive)
-          else
-            data
-          end
+    data =
+      if server_keep_alive do
+        data
+        |> Map.put(:keep_alive, server_keep_alive)
+      else
+        data
+      end
 
-        keep_alive = Map.get(data, :keep_alive)
-        {:next_state, :connected, data, [{:timeout, :timer.seconds(keep_alive), :ping}]}
+    keep_alive = Map.get(data, :keep_alive)
+    {:next_state, :connected, data, [{:timeout, :timer.seconds(keep_alive), :ping}]}
+  end
 
-      %Packet.Connack{reason_code: reason_code} ->
-        {:stop, reason_code}
+  defp handle_packet(%Packet.Connack{reason_code: reason_code}, _) do
+    {:stop, reason_code}
+  end
 
-      %Packet.Pingresp{} ->
-        keep_alive = Map.get(data, :keep_alive)
-        {:next_state, :connected, data, [{:timeout, :timer.seconds(keep_alive), :ping}]}
-    end
+  defp handle_packet(%Packet.Pingresp{}, data) do
+    keep_alive = Map.get(data, :keep_alive)
+    {:next_state, :connected, data, [{:timeout, :timer.seconds(keep_alive), :ping}]}
   end
 end
