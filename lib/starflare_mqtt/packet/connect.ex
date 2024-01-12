@@ -59,49 +59,6 @@ defmodule StarflareMqtt.Packet.Connect do
 
   def decode(_), do: {:error, :unsupported_protocol_error}
 
-  def encode(%__MODULE__{} = packet) do
-    %__MODULE__{
-      password: password,
-      username: username,
-      clientid: clientid,
-      properties: properties,
-      keep_alive: keep_alive,
-      will: will
-    } = packet
-
-    with {:ok, data} <- encode_string(password),
-         encoded_data <- data,
-         {:ok, data} <- encode_string(username),
-         encoded_data <- data <> encoded_data,
-         {:ok, data} <- encode_will(will),
-         encoded_data <- data <> encoded_data,
-         {:ok, data} <- Utf8.encode(clientid),
-         encoded_data <- data <> encoded_data,
-         {:ok, data} <- Property.encode(properties),
-         encoded_data <- data <> encoded_data,
-         {:ok, data} <- TwoByte.encode(keep_alive),
-         encoded_data <- data <> encoded_data,
-         {:ok, data} <- encode_flags(packet),
-         encoded_data <- @header <> data <> encoded_data do
-      {:ok, encoded_data}
-    end
-  end
-
-  defp encode_will(nil), do: {:ok, <<>>}
-
-  defp encode_will(will) do
-    with {:ok, data} <- Binary.encode(will.payload),
-         encoded_data <- data,
-         {:ok, data} <- Utf8.encode(will.topic),
-         encoded_data <- data <> encoded_data,
-         {:ok, data} <- Property.encode(will.properties),
-         encoded_data <- data <> encoded_data do
-      {:ok, encoded_data}
-    end
-  end
-
-  defp encode_string(string), do: Utf8.encode(string)
-
   defp decode_string(true, data), do: Utf8.decode(data)
   defp decode_string(false, data), do: {:ok, nil, data}
 
@@ -132,6 +89,47 @@ defmodule StarflareMqtt.Packet.Connect do
          will_flag,
          clean_start
        }, rest}
+    end
+  end
+
+  def encode(%__MODULE__{} = packet) do
+    %__MODULE__{
+      password: password,
+      username: username,
+      clientid: clientid,
+      properties: properties,
+      keep_alive: keep_alive,
+      will: will
+    } = packet
+
+    with {:ok, data} <- Utf8.encode(password),
+         encoded_data <- data,
+         {:ok, data} <- Utf8.encode(username),
+         encoded_data <- data <> encoded_data,
+         {:ok, data} <- encode_will(will),
+         encoded_data <- data <> encoded_data,
+         {:ok, data} <- Utf8.encode(clientid),
+         encoded_data <- data <> encoded_data,
+         {:ok, data} <- Property.encode(properties),
+         encoded_data <- data <> encoded_data,
+         {:ok, data} <- TwoByte.encode(keep_alive),
+         encoded_data <- data <> encoded_data,
+         {:ok, data} <- encode_flags(packet),
+         encoded_data <- @header <> data <> encoded_data do
+      {:ok, encoded_data}
+    end
+  end
+
+  defp encode_will(nil), do: {:ok, <<>>}
+
+  defp encode_will(will) do
+    with {:ok, data} <- Binary.encode(will.payload),
+         encoded_data <- data,
+         {:ok, data} <- Utf8.encode(will.topic),
+         encoded_data <- data <> encoded_data,
+         {:ok, data} <- Property.encode(will.properties),
+         encoded_data <- data <> encoded_data do
+      {:ok, encoded_data}
     end
   end
 

@@ -19,6 +19,7 @@
         devenv.shells.default = {
           packages = [
             pkgs.elixir
+            pkgs.mosquitto
           ];
         };
       };

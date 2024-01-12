@@ -70,55 +70,17 @@ defmodule StarflareMqtt.Client.Connection do
 
       {:next_state, :connecting, data}
     else
-      error -> {:stop, error}
+      error ->
+        {:stop, error}
     end
   end
 
   def handle_event(:info, {:tcp, socket, packet}, :connecting, %{socket: socket} = data) do
     :inet.setopts(socket, active: :once)
 
-    with {:ok, packet} <- Packet.decode(packet) do
-      case packet do
-        %Packet.Connack{reason_code: :success} = connack ->
-          %Packet.Connack{properties: properties} = connack
-
-          data =
-            data
-            |> Map.put(:properties, properties)
-
-          assigned_client_identifier = Map.get(properties, :assigned_client_identifier)
-
-          data =
-            if assigned_client_identifier do
-              data
-              |> Map.put(:clientid, assigned_client_identifier)
-            else
-              data
-            end
-
-          server_keep_alive = Map.get(properties, :server_keep_alive)
-
-          data =
-            if server_keep_alive do
-              data
-              |> Map.put(:keep_alive, server_keep_alive)
-            else
-              data
-            end
-
-          keep_alive = Map.get(data, :keep_alive)
-          {:next_state, :connected, data, [{:timeout, :timer.seconds(keep_alive), :ping}]}
-
-        %Packet.Connack{reason_code: reason_code} ->
-          {:stop, reason_code}
-
-        %Packet.Pingresp{} ->
-          keep_alive = Map.get(data, :keep_alive)
-          {:next_state, :connected, data, [{:timeout, :timer.seconds(keep_alive), :ping}]}
-
-        _ ->
-          :stop
-      end
+    case Packet.decode(packet) do
+      {:ok, packet} -> handle_connecting_packet(packet, data)
+      {:error, error} -> {:stop, error}
     end
   end
 
@@ -154,6 +116,47 @@ defmodule StarflareMqtt.Client.Connection do
     else
       error ->
         {:keep_state_and_data, {:reply, from, {:error, error}}}
+    end
+  end
+
+  defp handle_connecting_packet(packet, data) do
+    case packet do
+      %Packet.Connack{reason_code: :success} = connack ->
+        %Packet.Connack{properties: properties} = connack
+
+        data =
+          data
+          |> Map.put(:properties, properties)
+
+        assigned_client_identifier = Map.get(properties, :assigned_client_identifier)
+
+        data =
+          if assigned_client_identifier do
+            data
+            |> Map.put(:clientid, assigned_client_identifier)
+          else
+            data
+          end
+
+        server_keep_alive = Map.get(properties, :server_keep_alive)
+
+        data =
+          if server_keep_alive do
+            data
+            |> Map.put(:keep_alive, server_keep_alive)
+          else
+            data
+          end
+
+        keep_alive = Map.get(data, :keep_alive)
+        {:next_state, :connected, data, [{:timeout, :timer.seconds(keep_alive), :ping}]}
+
+      %Packet.Connack{reason_code: reason_code} ->
+        {:stop, reason_code}
+
+      %Packet.Pingresp{} ->
+        keep_alive = Map.get(data, :keep_alive)
+        {:next_state, :connected, data, [{:timeout, :timer.seconds(keep_alive), :ping}]}
     end
   end
 end

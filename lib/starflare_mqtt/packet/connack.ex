@@ -4,9 +4,8 @@ defmodule StarflareMqtt.Packet.Connack do
 
   defstruct [:session_present, :properties, :reason_code]
 
-  def decode(data) do
-    with {:ok, false, rest} <- Boolean.decode(data),
-         {:ok, session_present, rest} <- Boolean.decode(rest),
+  def decode(<<0::7, rest::bitstring>>) do
+    with {:ok, session_present, rest} <- Boolean.decode(rest),
          {:ok, reason_code, rest} <- ReasonCode.decode(__MODULE__, rest),
          {:ok, properties, _} <- Property.decode(rest) do
       {:ok,
@@ -17,6 +16,8 @@ defmodule StarflareMqtt.Packet.Connack do
        }}
     end
   end
+
+  def decode(<<_::7, _::bitstring>>), do: {:ok, :malformed_packet}
 
   def encode(%__MODULE__{} = connack) do
     %__MODULE__{

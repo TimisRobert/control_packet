@@ -16,9 +16,9 @@ defmodule StarflareMqtt.Packet.Type.Qos do
 
   def encode(qos) do
     case qos do
-      :at_most_once -> {:ok, <<@at_most_once>>}
-      :at_least_once -> {:ok, <<@at_least_once>>}
-      :exactly_once -> {:ok, <<@exactly_once>>}
+      :at_most_once -> {:ok, <<@at_most_once::2>>}
+      :at_least_once -> {:ok, <<@at_least_once::2>>}
+      :exactly_once -> {:ok, <<@exactly_once::2>>}
       _ -> {:error, :malformed_packet}
     end
   end
