@@ -1,11 +1,12 @@
-defmodule StarflareMqtt.Connack do
+defmodule StarflareMqtt.Packet.Connack do
   @moduledoc false
-  alias StarflareMqtt.Type.{Boolean, Property, ReasonCode}
+  alias StarflareMqtt.Packet.Type.{Boolean, Property, ReasonCode}
 
   defstruct [:session_present, :properties, :reason_code]
 
-  def decode(<<_::7, session_present::1, rest::binary>>) do
-    with {:ok, session_present} <- Boolean.decode(session_present),
+  def decode(data) do
+    with {:ok, false, rest} <- Boolean.decode(data),
+         {:ok, session_present, rest} <- Boolean.decode(rest),
          {:ok, reason_code, rest} <- ReasonCode.decode(__MODULE__, rest),
          {:ok, properties, _} <- Property.decode(rest) do
       {:ok,
@@ -29,7 +30,7 @@ defmodule StarflareMqtt.Connack do
          {:ok, data} <- ReasonCode.encode(__MODULE__, reason_code),
          encoded_data <- data <> encoded_data,
          {:ok, data} <- Boolean.encode(session_present),
-         encoded_data <- <<0::7, data::1>> <> encoded_data do
+         encoded_data <- <<0::7, data::bitstring>> <> encoded_data do
       {:ok, encoded_data}
     end
   end

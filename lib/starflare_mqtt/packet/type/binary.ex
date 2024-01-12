@@ -1,4 +1,4 @@
-defmodule StarflareMqtt.Type.Binary do
+defmodule StarflareMqtt.Packet.Type.Binary do
   @moduledoc false
 
   def decode(<<length::16, data::binary-size(length), rest::binary>>) do

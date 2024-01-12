@@ -1,7 +1,7 @@
-defmodule StarflareMqtt.Type.ReasonCode do
+defmodule StarflareMqtt.Packet.Type.ReasonCode do
   @moduledoc false
 
-  alias StarflareMqtt.{
+  alias StarflareMqtt.Packet.{
     Auth,
     Connack,
     Disconnect,

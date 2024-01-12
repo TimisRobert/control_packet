@@ -1,4 +1,4 @@
-defmodule StarflareMqtt.Pingresp do
+defmodule StarflareMqtt.Packet.Pingreq do
   @moduledoc false
 
   defstruct []

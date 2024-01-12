@@ -1,7 +1,7 @@
-defmodule StarflareMqtt.Pubrel do
+defmodule StarflareMqtt.Packet.Pubrec do
   @moduledoc false
 
-  alias StarflareMqtt.Type.{Property, ReasonCode, TwoByte}
+  alias StarflareMqtt.Packet.Type.{Property, ReasonCode, TwoByte}
 
   defstruct [:packet_identifier, :reason_code, :properties]
 

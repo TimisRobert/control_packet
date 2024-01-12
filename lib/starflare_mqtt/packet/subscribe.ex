@@ -1,7 +1,7 @@
-defmodule StarflareMqtt.Subscribe do
+defmodule StarflareMqtt.Packet.Subscribe do
   @moduledoc false
 
-  alias StarflareMqtt.Type.{Property, RetainHandling, Boolean, Qos, Utf8, TwoByte}
+  alias StarflareMqtt.Packet.Type.{Property, RetainHandling, Boolean, Qos, Utf8, TwoByte}
 
   defstruct [:packet_identifier, :topic_filters, :properties]
 
@@ -27,21 +27,16 @@ defmodule StarflareMqtt.Subscribe do
     end
   end
 
-  defp decode_subscription_options(<<
-         _::2,
-         retain_handling::2,
-         rap::1,
-         nl::1,
-         qos::2,
-         rest::binary
-       >>) do
-    with {:ok, retain_handling} <- RetainHandling.decode(retain_handling),
-         {:ok, rap} <- Boolean.decode(rap),
-         {:ok, nl} <- Boolean.decode(nl),
-         {:ok, qos} <- Qos.decode(qos) do
+  defp decode_subscription_options(<<0::2, rest::bitstring>>) do
+    with {:ok, retain_handling, rest} <- RetainHandling.decode(rest),
+         {:ok, rap, rest} <- Boolean.decode(rest),
+         {:ok, nl, rest} <- Boolean.decode(rest),
+         {:ok, qos, rest} <- Qos.decode(rest) do
       {:ok, %{retain_handling: retain_handling, rap: rap, nl: nl, qos: qos}, rest}
     end
   end
+
+  defp decode_subscription_options(<<_::2, _::bitstring>>), do: {:error, :malformed_packet}
 
   def encode(%__MODULE__{} = puback) do
     %__MODULE__{
@@ -81,10 +76,10 @@ defmodule StarflareMqtt.Subscribe do
       {:ok,
        <<
          0::2,
-         retain_handling::2,
-         rap::1,
-         nl::1,
-         qos::2
+         retain_handling::bitstring,
+         rap::bitstring,
+         nl::bitstring,
+         qos::bitstring
        >>}
     end
   end

@@ -1,7 +1,7 @@
-defmodule StarflareMqtt.Type.Property do
+defmodule StarflareMqtt.Packet.Type.Property do
   @moduledoc false
 
-  alias StarflareMqtt.Type.{
+  alias StarflareMqtt.Packet.Type.{
     Qos,
     Vbi,
     Byte,
@@ -174,8 +174,7 @@ defmodule StarflareMqtt.Type.Property do
   end
 
   defp decode(<<@maximum_qos, data::binary>>, list) do
-    with {:ok, data, rest} <- Byte.decode(data),
-         {:ok, qos} <- Qos.decode(data) do
+    with {:ok, qos, rest} <- Qos.decode(data) do
       decode(rest, [{:maximum_qos, qos} | list])
     end
   end
@@ -370,8 +369,7 @@ defmodule StarflareMqtt.Type.Property do
   end
 
   defp do_encode({:maximum_qos, value}) do
-    with {:ok, value} <- Qos.encode(value),
-         {:ok, data} <- Byte.encode(value) do
+    with {:ok, data} <- Qos.encode(value) do
       {:ok, <<@maximum_qos>> <> data}
     end
   end

@@ -1,7 +1,7 @@
-defmodule StarflareMqtt.Publish do
+defmodule StarflareMqtt.Packet.Publish do
   @moduledoc false
 
-  alias StarflareMqtt.Type.{
+  alias StarflareMqtt.Packet.Type.{
     TwoByte,
     Property,
     Utf8,
@@ -40,10 +40,10 @@ defmodule StarflareMqtt.Publish do
   defp decode_packet_identifier(:at_most_once, data), do: {:ok, nil, data}
   defp decode_packet_identifier(_, data), do: TwoByte.decode(data)
 
-  defp decode_flags(<<dup_flag::1, qos_level::2, retain::1>>) do
-    with {:ok, dup_flag} <- Boolean.decode(dup_flag),
-         {:ok, qos_level} <- Qos.decode(qos_level),
-         {:ok, retain} <- Boolean.decode(retain) do
+  defp decode_flags(data) do
+    with {:ok, dup_flag, rest} <- Boolean.decode(data),
+         {:ok, qos_level, rest} <- Qos.decode(rest),
+         {:ok, retain, _} <- Boolean.decode(rest) do
       {:ok, {dup_flag, qos_level, retain}}
     end
   end
@@ -74,7 +74,7 @@ defmodule StarflareMqtt.Publish do
     with {:ok, dup_flag} <- Boolean.encode(dup_flag),
          {:ok, qos_level} <- Qos.encode(qos_level),
          {:ok, retain} <- Boolean.encode(retain) do
-      {:ok, <<dup_flag::1, qos_level::2, retain::1>>}
+      {:ok, <<dup_flag::bitstring, qos_level::bitstring, retain::bitstring>>}
     end
   end
 

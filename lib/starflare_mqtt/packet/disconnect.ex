@@ -1,7 +1,7 @@
-defmodule StarflareMqtt.Disconnect do
+defmodule StarflareMqtt.Packet.Disconnect do
   @moduledoc false
 
-  alias StarflareMqtt.Type.{Property, ReasonCode}
+  alias StarflareMqtt.Packet.Type.{Property, ReasonCode}
 
   defstruct [:reason_code, :properties]
 

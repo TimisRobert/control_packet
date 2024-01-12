@@ -1,7 +1,7 @@
-defmodule StarflareMqtt.Suback do
+defmodule StarflareMqtt.Packet.Suback do
   @moduledoc false
 
-  alias StarflareMqtt.Type.{Property, ReasonCode, TwoByte}
+  alias StarflareMqtt.Packet.Type.{Property, ReasonCode, TwoByte}
 
   defstruct [:packet_identifier, :reason_codes, :properties]
 

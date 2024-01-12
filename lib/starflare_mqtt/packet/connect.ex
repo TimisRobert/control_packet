@@ -1,7 +1,7 @@
-defmodule StarflareMqtt.Connect do
+defmodule StarflareMqtt.Packet.Connect do
   @moduledoc false
 
-  alias StarflareMqtt.Type.{
+  alias StarflareMqtt.Packet.Type.{
     TwoByte,
     Qos,
     Boolean,
@@ -115,22 +115,14 @@ defmodule StarflareMqtt.Connect do
     end
   end
 
-  defp decode_flags(<<
-         username_flag::1,
-         password_flag::1,
-         will_retain::1,
-         will_qos::2,
-         will_flag::1,
-         clean_start::1,
-         _reserved::1,
-         rest::binary
-       >>) do
-    with {:ok, username_flag} <- Boolean.decode(username_flag),
-         {:ok, password_flag} <- Boolean.decode(password_flag),
-         {:ok, will_retain} <- Boolean.decode(will_retain),
-         {:ok, will_qos} <- Qos.decode(will_qos),
-         {:ok, will_flag} <- Boolean.decode(will_flag),
-         {:ok, clean_start} <- Boolean.decode(clean_start) do
+  defp decode_flags(data) do
+    with {:ok, username_flag, rest} <- Boolean.decode(data),
+         {:ok, password_flag, rest} <- Boolean.decode(rest),
+         {:ok, will_retain, rest} <- Boolean.decode(rest),
+         {:ok, will_qos, rest} <- Qos.decode(rest),
+         {:ok, will_flag, rest} <- Boolean.decode(rest),
+         {:ok, clean_start, rest} <- Boolean.decode(rest),
+         {:ok, false, rest} <- Boolean.decode(rest) do
       {:ok,
        {
          username_flag,
@@ -143,10 +135,6 @@ defmodule StarflareMqtt.Connect do
     end
   end
 
-  defp decode_flags(<<_::7, 1::1, _::binary>>) do
-    {:error, :malformed_packet}
-  end
-
   defp encode_flags(%__MODULE__{} = packet) do
     %__MODULE__{
       password: password,
@@ -157,6 +145,22 @@ defmodule StarflareMqtt.Connect do
       clean_start: clean_start
     } = packet
 
+    will_flag = !!will
+
+    will_qos =
+      if will_flag do
+        will_qos
+      else
+        :at_most_once
+      end
+
+    will_retain =
+      if will_flag do
+        false
+      else
+        will_retain
+      end
+
     with {:ok, will_flag} <- Boolean.encode(!!will),
          {:ok, will_qos} <- Qos.encode(will_qos),
          {:ok, will_retain} <- Boolean.encode(will_retain),
@@ -165,12 +169,12 @@ defmodule StarflareMqtt.Connect do
          {:ok, clean_start} <- Boolean.encode(clean_start) do
       {:ok,
        <<
-         username_flag::1,
-         password_flag::1,
-         will_retain::1,
-         will_qos::2,
-         will_flag::1,
-         clean_start::1,
+         username_flag::bitstring,
+         password_flag::bitstring,
+         will_retain::bitstring,
+         will_qos::bitstring,
+         will_flag::bitstring,
+         clean_start::bitstring,
          0::1
        >>}
     end
