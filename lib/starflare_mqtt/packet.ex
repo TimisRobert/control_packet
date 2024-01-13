@@ -58,14 +58,17 @@ defmodule StarflareMqtt.Packet do
   for {code, module} <- @packets do
     def decode(<<unquote(code)::4, flags::bitstring-4, vbi::binary>> = data) do
       with {:ok, vbi, rest} <- Vbi.decode(vbi),
-           <<data::binary-size(vbi), rest::binary>> <- rest,
-           {:ok, data} <- unquote(module).decode(data, flags) do
+           <<encoded_data::binary-size(vbi), rest::binary>> <- rest,
+           {:ok, data} <- unquote(module).decode(encoded_data, flags) do
         {:ok, data, rest}
       else
         "" ->
           {:ok, nil, data}
 
-        error ->
+        _ ->
+          {:ok, nil, data}
+
+        {:error, error} ->
           {:error, error}
       end
     end
@@ -81,4 +84,6 @@ defmodule StarflareMqtt.Packet do
       end
     end
   end
+
+  def encode(_), do: {:error, :malformed_packet}
 end

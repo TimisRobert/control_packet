@@ -265,16 +265,28 @@ defmodule StarflareMqtt.Client.Connection do
     end
   end
 
+  defp handle_packet(%Packet.Unsuback{} = unsuback, _) do
+    from = Process.get(unsuback.packet_identifier)
+
+    {:reply, from, unsuback}
+  end
+
   defp handle_packet(%Packet.Suback{} = suback, _) do
     from = Process.get(suback.packet_identifier)
 
-    {:reply, from, :ok}
+    {:reply, from, suback}
   end
 
   defp handle_packet(%Packet.Puback{} = puback, _) do
     from = Process.get(puback.packet_identifier)
 
-    {:reply, from, :ok}
+    {:reply, from, puback}
+  end
+
+  defp handle_packet(%Packet.Publish{} = publish, _) do
+    IO.inspect(publish)
+
+    nil
   end
 
   defp handle_packet(%Packet.Pubrec{} = pubrec, %{socket: socket}) do
