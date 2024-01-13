@@ -78,6 +78,13 @@ defmodule StarflareMqtt.Client.Connection do
     end
   end
 
+  def handle_event(:info, {:tcp, socket, packet}, :connected, %{socket: socket} = data) do
+    :inet.setopts(socket, active: :once)
+
+    keep_alive = Map.get(data, :keep_alive)
+    {:keep_state_and_data, [{:timeout, :timer.seconds(keep_alive), :ping}]}
+  end
+
   def handle_event(:info, {:tcp, socket, packet}, :connecting, %{socket: socket} = data) do
     :inet.setopts(socket, active: :once)
 
