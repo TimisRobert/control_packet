@@ -214,16 +214,9 @@ defmodule StarflareMqtt.Packet do
   end
 
   def encode(%Disconnect{} = disconnect) do
-    with {:ok, packet} <- Disconnect.encode(disconnect) do
-      byte_size = byte_size(packet)
-
-      if byte_size > 0 do
-        with {:ok, vbi} <- Vbi.encode(byte_size) do
-          {:ok, <<@disconnect::4, 0::4, vbi::binary>> <> packet}
-        end
-      else
-        {:ok, <<@disconnect::4, 0::4>>}
-      end
+    with {:ok, packet} <- Disconnect.encode(disconnect),
+         {:ok, vbi} <- Vbi.encode(byte_size(packet)) do
+      {:ok, <<@disconnect::4, 0::4, vbi::binary>> <> packet}
     end
   end
 

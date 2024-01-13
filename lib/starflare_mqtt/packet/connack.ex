@@ -1,5 +1,6 @@
 defmodule StarflareMqtt.Packet.Connack do
   @moduledoc false
+
   alias StarflareMqtt.Packet.Type.{Boolean, Property, ReasonCode}
 
   defstruct [:session_present, :properties, :reason_code]

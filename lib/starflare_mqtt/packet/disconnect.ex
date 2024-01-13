@@ -18,6 +18,8 @@ defmodule StarflareMqtt.Packet.Disconnect do
     end
   end
 
+  def encode(%__MODULE__{reason_code: nil}), do: {:ok, <<>>}
+
   def encode(%__MODULE__{} = disconnect) do
     %__MODULE__{
       reason_code: reason_code,

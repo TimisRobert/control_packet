@@ -26,14 +26,6 @@ defmodule StarflareMqtt.Packet.Unsubscribe do
     end
   end
 
-  defp encode_topic_filters([], encoded_data), do: {:ok, encoded_data}
-
-  defp encode_topic_filters([topic_filter | list], encoded_data) do
-    with {:ok, data} <- Utf8.encode(topic_filter) do
-      encode_topic_filters(list, data <> encoded_data)
-    end
-  end
-
   def encode(%__MODULE__{} = puback) do
     %__MODULE__{
       packet_identifier: packet_identifier,
@@ -48,6 +40,14 @@ defmodule StarflareMqtt.Packet.Unsubscribe do
          {:ok, data} <- TwoByte.encode(packet_identifier),
          encoded_data <- data <> encoded_data do
       {:ok, encoded_data}
+    end
+  end
+
+  defp encode_topic_filters([], encoded_data), do: {:ok, encoded_data}
+
+  defp encode_topic_filters([topic_filter | list], encoded_data) do
+    with {:ok, data} <- Utf8.encode(topic_filter) do
+      encode_topic_filters(list, data <> encoded_data)
     end
   end
 end

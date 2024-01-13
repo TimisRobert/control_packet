@@ -19,14 +19,22 @@ defmodule StarflareMqtt.Client.Connection do
   def start_link(opts) do
     {host, opts} = Keyword.pop!(opts, :host)
     {port, opts} = Keyword.pop!(opts, :port)
-    {username, opts} = Keyword.pop!(opts, :username)
-    {password, opts} = Keyword.pop!(opts, :password)
+    {username, opts} = Keyword.pop(opts, :username, "")
+    {password, opts} = Keyword.pop(opts, :password, "")
 
     :gen_statem.start_link(__MODULE__, {host, port, username, password}, opts)
   end
 
-  def send(pid, packet) do
+  def call(pid, packet) do
     :gen_statem.call(pid, {:send, packet})
+  end
+
+  def send_request(pid, packet) do
+    :gen_statem.send_request(pid, {:send, packet})
+  end
+
+  def get_state(pid) do
+    :sys.get_state(pid)
   end
 
   @impl true
@@ -38,14 +46,14 @@ defmodule StarflareMqtt.Client.Connection do
       password: password
     }
 
-    {:ok, :disconnected, data, [{:next_event, :internal, :connecting}]}
+    {:ok, :disconnected, data, [{:next_event, :internal, :connect}]}
   end
 
   @impl true
   def callback_mode, do: :handle_event_function
 
   @impl true
-  def handle_event(:internal, :connecting, :disconnected, data) do
+  def handle_event(:internal, :connect, :disconnected, data) do
     %__MODULE__{
       host: host,
       port: port,
@@ -73,16 +81,18 @@ defmodule StarflareMqtt.Client.Connection do
 
       {:next_state, :connecting, data}
     else
-      error ->
-        {:stop, error}
+      _error ->
+        {:keep_state_and_data, [{:timeout, :timer.seconds(1), :connect}]}
     end
   end
 
   def handle_event(:info, {:tcp, socket, packet}, :connected, %{socket: socket} = data) do
     :inet.setopts(socket, active: :once)
 
-    keep_alive = Map.get(data, :keep_alive)
-    {:keep_state_and_data, [{:timeout, :timer.seconds(keep_alive), :ping}]}
+    case Packet.decode(packet) do
+      {:ok, packet} -> handle_packet(packet, data)
+      {:error, error} -> {:stop, error}
+    end
   end
 
   def handle_event(:info, {:tcp, socket, packet}, :connecting, %{socket: socket} = data) do
@@ -96,7 +106,11 @@ defmodule StarflareMqtt.Client.Connection do
 
   def handle_event(:info, {:tcp_closed, socket}, :connected, %{socket: socket} = data) do
     :gen_tcp.close(socket)
-    {:next_state, :disconnected, %{data | socket: nil}, [{:next_event, :internal, :connecting}]}
+
+    {:next_state, :disconnected, %{data | socket: nil},
+     [
+       {:next_event, :internal, :connect}
+     ]}
   end
 
   def handle_event(:timeout, :ping, :connected, %{socket: socket} = data) do
@@ -106,17 +120,59 @@ defmodule StarflareMqtt.Client.Connection do
     end
   end
 
-  def handle_event({:call, from}, {:send, packet}, :connected, %{socket: socket} = data) do
-    keep_alive = Map.get(data, :keep_alive)
+  def handle_event(:timeout, :connect, :disconnected, _) do
+    {:keep_state_and_data, [{:next_event, :internal, :connect}]}
+  end
 
-    case send_packet(socket, packet) do
+  def handle_event(
+        {:call, from},
+        {:send, %Packet.Publish{} = publish},
+        :connected,
+        %{socket: socket} = data
+      ) do
+    case send_packet(socket, publish) do
       :ok ->
-        {:keep_state_and_data,
-         [{:reply, from, :ok}, {:timeout, :timer.seconds(keep_alive), :ping}]}
+        case publish.qos_level do
+          :at_most_once ->
+            {:keep_state_and_data,
+             [
+               {:reply, from, :ok},
+               {:timeout, :timer.seconds(data.keep_alive), :ping}
+             ]}
+
+          _ ->
+            Process.put(publish.packet_identifier, from)
+
+            {:keep_state_and_data,
+             [
+               {:timeout, :timer.seconds(data.keep_alive), :ping}
+             ]}
+        end
 
       error ->
         {:keep_state_and_data,
-         [{:reply, from, {:error, error}}, {:timeout, :timer.seconds(keep_alive), :ping}]}
+         [
+           {:reply, from, {:error, error}},
+           {:timeout, :timer.seconds(data.keep_alive), :ping}
+         ]}
+    end
+  end
+
+  def handle_event({:call, from}, {:send, packet}, :connected, %{socket: socket} = data) do
+    case send_packet(socket, packet) do
+      :ok ->
+        {:keep_state_and_data,
+         [
+           {:reply, from, :ok},
+           {:timeout, :timer.seconds(data.keep_alive), :ping}
+         ]}
+
+      error ->
+        {:keep_state_and_data,
+         [
+           {:reply, from, {:error, error}},
+           {:timeout, :timer.seconds(data.keep_alive), :ping}
+         ]}
     end
   end
 
@@ -129,11 +185,7 @@ defmodule StarflareMqtt.Client.Connection do
   defp handle_packet(%Packet.Connack{reason_code: :success} = connack, data) do
     %Packet.Connack{properties: properties} = connack
 
-    data =
-      data
-      |> Map.put(:properties, properties)
-
-    assigned_client_identifier = Map.get(properties, :assigned_client_identifier)
+    {assigned_client_identifier, properties} = Map.pop(properties, :assigned_client_identifier)
 
     data =
       if assigned_client_identifier do
@@ -143,7 +195,7 @@ defmodule StarflareMqtt.Client.Connection do
         data
       end
 
-    server_keep_alive = Map.get(properties, :server_keep_alive)
+    {server_keep_alive, properties} = Map.pop(properties, :server_keep_alive)
 
     data =
       if server_keep_alive do
@@ -153,8 +205,14 @@ defmodule StarflareMqtt.Client.Connection do
         data
       end
 
-    keep_alive = Map.get(data, :keep_alive)
-    {:next_state, :connected, data, [{:timeout, :timer.seconds(keep_alive), :ping}]}
+    data =
+      data
+      |> Map.put(:properties, properties)
+
+    {:next_state, :connected, data,
+     [
+       {:timeout, :timer.seconds(data.keep_alive), :ping}
+     ]}
   end
 
   defp handle_packet(%Packet.Connack{reason_code: reason_code}, _) do
@@ -162,7 +220,55 @@ defmodule StarflareMqtt.Client.Connection do
   end
 
   defp handle_packet(%Packet.Pingresp{}, data) do
-    keep_alive = Map.get(data, :keep_alive)
-    {:next_state, :connected, data, [{:timeout, :timer.seconds(keep_alive), :ping}]}
+    {:next_state, :connected, data,
+     [
+       {:timeout, :timer.seconds(data.keep_alive), :ping}
+     ]}
+  end
+
+  defp handle_packet(%Packet.Puback{} = puback, data) do
+    from = Process.get(puback.packet_identifier)
+
+    {:keep_state_and_data,
+     [
+       {:reply, from, :ok},
+       {:timeout, :timer.seconds(data.keep_alive), :ping}
+     ]}
+  end
+
+  defp handle_packet(
+         %Packet.Pubrec{packet_identifier: packet_identifier} = pubrec,
+         %{socket: socket} = data
+       ) do
+    from = Process.get(pubrec.packet_identifier)
+
+    pubrel = %Packet.Pubrel{
+      packet_identifier: packet_identifier
+    }
+
+    case send_packet(socket, pubrel) do
+      :ok ->
+        {:keep_state_and_data,
+         [
+           {:timeout, :timer.seconds(data.keep_alive), :ping}
+         ]}
+
+      error ->
+        {:keep_state_and_data,
+         [
+           {:reply, from, {:error, error}},
+           {:timeout, :timer.seconds(data.keep_alive), :ping}
+         ]}
+    end
+  end
+
+  defp handle_packet(%Packet.Pubcomp{} = pubcomp, data) do
+    from = Process.get(pubcomp.packet_identifier)
+
+    {:keep_state_and_data,
+     [
+       {:reply, from, :ok},
+       {:timeout, :timer.seconds(data.keep_alive), :ping}
+     ]}
   end
 end

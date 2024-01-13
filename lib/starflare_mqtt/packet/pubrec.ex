@@ -5,6 +5,12 @@ defmodule StarflareMqtt.Packet.Pubrec do
 
   defstruct [:packet_identifier, :reason_code, :properties]
 
+  def decode(data) when byte_size(data) == 2 do
+    with {:ok, packet_identifier, _} <- TwoByte.decode(data) do
+      {:ok, %__MODULE__{packet_identifier: packet_identifier, reason_code: :success}}
+    end
+  end
+
   def decode(data) do
     with {:ok, packet_identifier, rest} <- TwoByte.decode(data),
          {:ok, reason_code, rest} <- ReasonCode.decode(__MODULE__, rest),
@@ -16,6 +22,14 @@ defmodule StarflareMqtt.Packet.Pubrec do
          reason_code: reason_code
        }}
     end
+  end
+
+  def encode(%__MODULE__{reason_code: nil} = puback) do
+    %__MODULE__{
+      packet_identifier: packet_identifier
+    } = puback
+
+    TwoByte.encode(packet_identifier)
   end
 
   def encode(%__MODULE__{} = puback) do
