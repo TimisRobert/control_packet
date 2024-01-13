@@ -32,7 +32,7 @@ defmodule StarflareMqtt.Packet.Subscribe do
          {:ok, rap, rest} <- Boolean.decode(rest),
          {:ok, nl, rest} <- Boolean.decode(rest),
          {:ok, qos, rest} <- Qos.decode(rest) do
-      {:ok, %{retain_handling: retain_handling, rap: rap, nl: nl, qos: qos}, rest}
+      {:ok, [retain_handling: retain_handling, rap: rap, nl: nl, qos: qos], rest}
     end
   end
 
@@ -67,12 +67,10 @@ defmodule StarflareMqtt.Packet.Subscribe do
   end
 
   defp encode_subscription_options(subscription_options) do
-    %{retain_handling: retain_handling, rap: rap, nl: nl, qos: qos} = subscription_options
-
-    with {:ok, retain_handling} <- RetainHandling.encode(retain_handling),
-         {:ok, rap} <- Boolean.encode(rap),
-         {:ok, nl} <- Boolean.encode(nl),
-         {:ok, qos} <- Qos.encode(qos) do
+    with {:ok, retain_handling} <- RetainHandling.encode(subscription_options[:retain_handling]),
+         {:ok, rap} <- Boolean.encode(subscription_options[:rap]),
+         {:ok, nl} <- Boolean.encode(subscription_options[:nl]),
+         {:ok, qos} <- Qos.encode(subscription_options[:qos]) do
       {:ok,
        <<
          0::2,

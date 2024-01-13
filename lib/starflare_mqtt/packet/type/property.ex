@@ -73,12 +73,11 @@ defmodule StarflareMqtt.Packet.Type.Property do
   def decode(<<>>), do: {:ok, nil, nil}
 
   def decode(data) do
-    with {:ok, vbi, rest} <- Vbi.decode(data) do
-      if vbi > 0 do
-        <<properties::binary-size(vbi), rest::binary>> = rest
-        {:ok, decode(properties, []), rest}
-      else
-        {:ok, nil, rest}
+    with {:ok, vbi, rest} <- Vbi.decode(data),
+         <<properties::binary-size(vbi), rest::binary>> <- rest do
+      case properties do
+        "" -> {:ok, nil, rest}
+        properties -> {:ok, decode(properties, []), rest}
       end
     end
   end
@@ -95,60 +94,24 @@ defmodule StarflareMqtt.Packet.Type.Property do
     {:error, :malformed_packet}
   end
 
-  defp decode(<<>>, list) do
-    {user_properties, list} =
-      list
-      |> Keyword.pop_values(:user_property)
-
-    case user_properties do
-      [] -> list
-      user_properties -> Keyword.put(list, :user_properties, Enum.into(user_properties, %{}))
-    end
-    |> Enum.into(%{})
-  end
+  defp decode(<<>>, list), do: list
 
   def encode(nil), do: {:ok, <<0x00>>}
 
   def encode(properties) do
-    with {:ok, encoded_data} <- encode(Map.to_list(properties), <<>>),
+    with {:ok, encoded_data} <- encode(properties, <<>>),
          {:ok, vbi} <- Vbi.encode(byte_size(encoded_data)) do
       {:ok, vbi <> encoded_data}
     end
   end
 
-  def encode([], encoded_data), do: {:ok, encoded_data}
-
-  def encode([elem | list], encoded_data) do
-    with {:ok, data} <- do_encode(elem) do
-      encode(list, data <> encoded_data)
-    end
-  end
-
   for {code, atom, module} <- @properties do
-    defp do_encode({unquote(atom), value}) do
-      with {:ok, data} <- unquote(module).encode(value) do
-        {:ok, <<unquote(code)>> <> data}
+    defp encode([{unquote(atom), value} | list], data) do
+      with {:ok, encoded_data} <- unquote(module).encode(value) do
+        encode(list, <<unquote(code)>> <> encoded_data <> data)
       end
     end
   end
 
-  defp do_encode({:user_properties, map}) when map_size(map) == 0 do
-    {:ok, <<>>}
-  end
-
-  defp do_encode({:user_properties, map}) do
-    {code, _, _} = @user_property
-
-    with {:ok, data} <- do_encode_user_property(Map.to_list(map), <<>>) do
-      {:ok, <<code>> <> data}
-    end
-  end
-
-  defp do_encode_user_property([], encoded_data), do: {:ok, encoded_data}
-
-  defp do_encode_user_property([value | list], encoded_data) do
-    with {:ok, data} <- Utf8Pair.encode(value) do
-      do_encode_user_property(list, data <> encoded_data)
-    end
-  end
+  defp encode([], encoded_data), do: {:ok, encoded_data}
 end

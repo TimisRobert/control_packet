@@ -155,6 +155,30 @@ defmodule StarflareMqtt.Client.Connection do
     end
   end
 
+  def handle_event(
+        {:call, from},
+        {:send, %Packet.Subscribe{} = subscribe},
+        :connected,
+        %{socket: socket} = data
+      ) do
+    case send_packet(socket, subscribe) do
+      :ok ->
+        Process.put(subscribe.packet_identifier, from)
+
+        {:keep_state_and_data,
+         [
+           {:timeout, :timer.seconds(data.keep_alive), :ping}
+         ]}
+
+      error ->
+        {:keep_state_and_data,
+         [
+           {:reply, from, {:error, error}},
+           {:timeout, :timer.seconds(data.keep_alive), :ping}
+         ]}
+    end
+  end
+
   def handle_event({:call, from}, {:send, packet}, :connected, %{socket: socket} = data) do
     case send_packet(socket, packet) do
       :ok ->
@@ -182,7 +206,8 @@ defmodule StarflareMqtt.Client.Connection do
   defp handle_connecting(%Packet.Connack{reason_code: :success} = connack, data) do
     %Packet.Connack{properties: properties} = connack
 
-    {assigned_client_identifier, properties} = Map.pop(properties, :assigned_client_identifier)
+    {assigned_client_identifier, properties} =
+      Keyword.pop(properties, :assigned_client_identifier)
 
     data =
       if assigned_client_identifier do
@@ -192,7 +217,7 @@ defmodule StarflareMqtt.Client.Connection do
         data
       end
 
-    {server_keep_alive, properties} = Map.pop(properties, :server_keep_alive)
+    {server_keep_alive, properties} = Keyword.pop(properties, :server_keep_alive)
 
     data =
       if server_keep_alive do
@@ -238,6 +263,12 @@ defmodule StarflareMqtt.Client.Connection do
       {:error, error} ->
         {:stop, error}
     end
+  end
+
+  defp handle_packet(%Packet.Suback{} = suback, _) do
+    from = Process.get(suback.packet_identifier)
+
+    {:reply, from, :ok}
   end
 
   defp handle_packet(%Packet.Puback{} = puback, _) do
