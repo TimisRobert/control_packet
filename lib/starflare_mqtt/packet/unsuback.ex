@@ -5,7 +5,7 @@ defmodule StarflareMqtt.Packet.Unsuback do
 
   defstruct [:packet_identifier, :reason_codes, :properties]
 
-  def decode(data) do
+  def decode(data, <<0::4>>) do
     with {:ok, packet_identifier, rest} <- TwoByte.decode(data),
          {:ok, properties, rest} <- Property.decode(rest),
          {:ok, reason_codes} <- decode_reason_codes(rest, []) do
@@ -39,7 +39,7 @@ defmodule StarflareMqtt.Packet.Unsuback do
          encoded_data <- data <> encoded_data,
          {:ok, data} <- TwoByte.encode(packet_identifier),
          encoded_data <- data <> encoded_data do
-      {:ok, encoded_data}
+      {:ok, encoded_data, <<0::4>>}
     end
   end
 

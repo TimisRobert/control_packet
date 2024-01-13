@@ -26,7 +26,7 @@ defmodule StarflareMqtt.Packet.Connect do
     will_qos: :at_most_once
   ]
 
-  def decode(<<@header, rest::binary>>) do
+  def decode(<<@header, rest::binary>>, <<0::4>>) do
     with {:ok,
           {
             username_flag,
@@ -57,7 +57,7 @@ defmodule StarflareMqtt.Packet.Connect do
     end
   end
 
-  def decode(_), do: {:error, :unsupported_protocol_error}
+  def decode(_, <<0::4>>), do: {:error, :unsupported_protocol_error}
 
   defp decode_string(true, data), do: Utf8.decode(data)
   defp decode_string(false, data), do: {:ok, nil, data}
@@ -116,7 +116,7 @@ defmodule StarflareMqtt.Packet.Connect do
          encoded_data <- data <> encoded_data,
          {:ok, data} <- encode_flags(packet),
          encoded_data <- @header <> data <> encoded_data do
-      {:ok, encoded_data}
+      {:ok, encoded_data, <<0::4>>}
     end
   end
 

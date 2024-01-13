@@ -21,24 +21,26 @@ defmodule StarflareMqtt.Packet do
 
   alias StarflareMqtt.Packet.Type.Vbi
 
-  @connect {1, 0, Connect}
-  @connack {2, 0, Connack}
-  @puback {4, 0, Puback}
-  @pubrec {5, 0, Pubrec}
-  @pubrel {6, 2, Pubrel}
-  @pubcomp {7, 0, Pubcomp}
-  @subscribe {8, 2, Subscribe}
-  @suback {9, 0, Suback}
-  @unsubscribe {10, 2, Unsubscribe}
-  @unsuback {11, 0, Unsuback}
-  @pingreq {12, 0, Pingreq}
-  @pingresp {13, 0, Pingresp}
-  @disconnect {14, 0, Disconnect}
-  @auth {15, 0, Auth}
+  @connect {1, Connect}
+  @connack {2, Connack}
+  @publish {3, Publish}
+  @puback {4, Puback}
+  @pubrec {5, Pubrec}
+  @pubrel {6, Pubrel}
+  @pubcomp {7, Pubcomp}
+  @subscribe {8, Subscribe}
+  @suback {9, Suback}
+  @unsubscribe {10, Unsubscribe}
+  @unsuback {11, Unsuback}
+  @pingreq {12, Pingreq}
+  @pingresp {13, Pingresp}
+  @disconnect {14, Disconnect}
+  @auth {15, Auth}
 
   @packets [
     @connect,
     @connack,
+    @publish,
     @puback,
     @pubrec,
     @pubrel,
@@ -53,11 +55,11 @@ defmodule StarflareMqtt.Packet do
     @auth
   ]
 
-  for {code, rest, module} <- @packets do
-    def decode(<<unquote(code)::4, unquote(rest)::4, vbi::binary>> = data) do
+  for {code, module} <- @packets do
+    def decode(<<unquote(code)::4, flags::bitstring-4, vbi::binary>> = data) do
       with {:ok, vbi, rest} <- Vbi.decode(vbi),
            <<data::binary-size(vbi), rest::binary>> <- rest,
-           {:ok, data} <- unquote(module).decode(data) do
+           {:ok, data} <- unquote(module).decode(data, flags) do
         {:ok, data, rest}
       else
         "" ->
@@ -69,31 +71,14 @@ defmodule StarflareMqtt.Packet do
     end
   end
 
-  def decode(<<3::4, flags::bitstring-4, vbi::binary>>) do
-    with {:ok, vbi, rest} <- Vbi.decode(vbi) do
-      <<data::binary-size(vbi), rest::binary>> = rest
-
-      with {:ok, data} <- Publish.decode(data, flags) do
-        {:ok, data, rest}
-      end
-    end
-  end
-
   def decode(_), do: {:error, :malformed_packet}
 
-  for {code, rest, module} <- @packets do
+  for {code, module} <- @packets do
     def encode(%unquote(module){} = packet) do
-      with {:ok, packet} <- unquote(module).encode(packet),
+      with {:ok, packet, flags} <- unquote(module).encode(packet),
            {:ok, vbi} <- Vbi.encode(byte_size(packet)) do
-        {:ok, <<unquote(code)::4, unquote(rest)::4, vbi::binary>> <> packet}
+        {:ok, <<unquote(code)::4, flags::bitstring, vbi::binary>> <> packet}
       end
-    end
-  end
-
-  def encode(%Publish{} = publish) do
-    with {:ok, packet, flags} <- Publish.encode(publish),
-         {:ok, vbi} <- Vbi.encode(byte_size(packet)) do
-      {:ok, <<3::4, flags::bitstring, vbi::binary>> <> packet}
     end
   end
 end

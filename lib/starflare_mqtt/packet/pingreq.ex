@@ -3,11 +3,11 @@ defmodule StarflareMqtt.Packet.Pingreq do
 
   defstruct []
 
-  def decode(<<>>) do
+  def decode(<<>>, <<0::4>>) do
     {:ok, %__MODULE__{}}
   end
 
   def encode(%__MODULE__{}) do
-    {:ok, <<>>}
+    {:ok, <<>>, <<0::4>>}
   end
 end

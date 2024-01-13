@@ -5,13 +5,13 @@ defmodule StarflareMqtt.Packet.Pubcomp do
 
   defstruct [:packet_identifier, :reason_code, :properties]
 
-  def decode(data) when byte_size(data) == 2 do
+  def decode(data, <<0::4>>) when byte_size(data) == 2 do
     with {:ok, packet_identifier, _} <- TwoByte.decode(data) do
       {:ok, %__MODULE__{packet_identifier: packet_identifier, reason_code: :success}}
     end
   end
 
-  def decode(data) do
+  def decode(data, <<0::4>>) do
     with {:ok, packet_identifier, rest} <- TwoByte.decode(data),
          {:ok, reason_code, rest} <- ReasonCode.decode(__MODULE__, rest),
          {:ok, properties, _} <- Property.decode(rest) do
@@ -29,7 +29,9 @@ defmodule StarflareMqtt.Packet.Pubcomp do
       packet_identifier: packet_identifier
     } = puback
 
-    TwoByte.encode(packet_identifier)
+    with {:ok, data} <- TwoByte.encode(packet_identifier) do
+      {:ok, data, <<0::4>>}
+    end
   end
 
   def encode(%__MODULE__{} = puback) do
@@ -45,7 +47,7 @@ defmodule StarflareMqtt.Packet.Pubcomp do
          encoded_data <- data <> encoded_data,
          {:ok, data} <- TwoByte.encode(packet_identifier),
          encoded_data <- data <> encoded_data do
-      {:ok, encoded_data}
+      {:ok, encoded_data, <<0::4>>}
     end
   end
 end

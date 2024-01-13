@@ -5,7 +5,7 @@ defmodule StarflareMqtt.Packet.Subscribe do
 
   defstruct [:packet_identifier, :topic_filters, :properties]
 
-  def decode(data) do
+  def decode(data, <<2::4>>) do
     with {:ok, packet_identifier, rest} <- TwoByte.decode(data),
          {:ok, properties, rest} <- Property.decode(rest),
          {:ok, topic_filters} <- decode_topic_filters(rest, []) do
@@ -51,7 +51,7 @@ defmodule StarflareMqtt.Packet.Subscribe do
          encoded_data <- data <> encoded_data,
          {:ok, data} <- TwoByte.encode(packet_identifier),
          encoded_data <- data <> encoded_data do
-      {:ok, encoded_data}
+      {:ok, encoded_data, <<2::4>>}
     end
   end
 
