@@ -70,7 +70,7 @@ defmodule StarflareMqtt.Client.Connection do
       clean_start: true
     }
 
-    opts = [:binary, packet: :raw, active: :once]
+    opts = [:binary, packet: :raw, active: true]
 
     with {:ok, socket} <- :gen_tcp.connect(to_charlist(host), port, opts),
          :ok <- send_packet(socket, connect) do
@@ -86,22 +86,19 @@ defmodule StarflareMqtt.Client.Connection do
     end
   end
 
-  def handle_event(:info, {:tcp, socket, packet}, :connected, %{socket: socket} = data) do
-    :inet.setopts(socket, active: :once)
-
+  def handle_event(:info, {:tcp, socket, packet}, :connecting, %{socket: socket} = data) do
     case Packet.decode(packet) do
-      {:ok, packet} -> handle_packet(packet, data)
-      {:error, error} -> {:stop, error}
+      {:ok, decoded_packet, ""} ->
+        handle_connecting(decoded_packet, data)
+
+      {:error, error} ->
+        {:stop, error}
     end
   end
 
-  def handle_event(:info, {:tcp, socket, packet}, :connecting, %{socket: socket} = data) do
-    :inet.setopts(socket, active: :once)
-
-    case Packet.decode(packet) do
-      {:ok, packet} -> handle_packet(packet, data)
-      {:error, error} -> {:stop, error}
-    end
+  def handle_event(:info, {:tcp, socket, packet}, :connected, %{socket: socket} = data) do
+    {:keep_state_and_data,
+     [{:timeout, :timer.seconds(data.keep_alive), :ping} | handle_packets(packet, data, [])]}
   end
 
   def handle_event(:info, {:tcp_closed, socket}, :connected, %{socket: socket} = data) do
@@ -116,7 +113,7 @@ defmodule StarflareMqtt.Client.Connection do
   def handle_event(:timeout, :ping, :connected, %{socket: socket} = data) do
     case send_packet(socket, %Packet.Pingreq{}) do
       :ok -> {:next_state, :connecting, data}
-      error -> {:stop, error}
+      _error -> {:next_state, :disconnected, data}
     end
   end
 
@@ -182,7 +179,7 @@ defmodule StarflareMqtt.Client.Connection do
     end
   end
 
-  defp handle_packet(%Packet.Connack{reason_code: :success} = connack, data) do
+  defp handle_connecting(%Packet.Connack{reason_code: :success} = connack, data) do
     %Packet.Connack{properties: properties} = connack
 
     {assigned_client_identifier, properties} = Map.pop(properties, :assigned_client_identifier)
@@ -215,60 +212,60 @@ defmodule StarflareMqtt.Client.Connection do
      ]}
   end
 
-  defp handle_packet(%Packet.Connack{reason_code: reason_code}, _) do
+  defp handle_connecting(%Packet.Connack{reason_code: reason_code}, _) do
     {:stop, reason_code}
   end
 
-  defp handle_packet(%Packet.Pingresp{}, data) do
+  defp handle_connecting(%Packet.Disconnect{reason_code: reason_code}, _) do
+    {:stop, reason_code}
+  end
+
+  defp handle_connecting(%Packet.Pingresp{}, data) do
     {:next_state, :connected, data,
      [
        {:timeout, :timer.seconds(data.keep_alive), :ping}
      ]}
   end
 
-  defp handle_packet(%Packet.Puback{} = puback, data) do
-    from = Process.get(puback.packet_identifier)
+  defp handle_packets(packets, data, list) do
+    case Packet.decode(packets) do
+      {:ok, decoded_packet, rest} when byte_size(rest) == 0 ->
+        Enum.reject([handle_packet(decoded_packet, data) | list], &is_nil/1)
 
-    {:keep_state_and_data,
-     [
-       {:reply, from, :ok},
-       {:timeout, :timer.seconds(data.keep_alive), :ping}
-     ]}
+      {:ok, decoded_packet, rest} ->
+        handle_packets(rest, data, [handle_packet(decoded_packet, data) | list])
+
+      {:error, error} ->
+        {:stop, error}
+    end
   end
 
-  defp handle_packet(
-         %Packet.Pubrec{packet_identifier: packet_identifier} = pubrec,
-         %{socket: socket} = data
-       ) do
+  defp handle_packet(%Packet.Puback{} = puback, _) do
+    from = Process.get(puback.packet_identifier)
+
+    {:reply, from, :ok}
+  end
+
+  defp handle_packet(%Packet.Pubrec{} = pubrec, %{socket: socket}) do
     from = Process.get(pubrec.packet_identifier)
 
     pubrel = %Packet.Pubrel{
-      packet_identifier: packet_identifier
+      packet_identifier: pubrec.packet_identifier
     }
 
     case send_packet(socket, pubrel) do
       :ok ->
-        {:keep_state_and_data,
-         [
-           {:timeout, :timer.seconds(data.keep_alive), :ping}
-         ]}
+        nil
 
       error ->
-        {:keep_state_and_data,
-         [
-           {:reply, from, {:error, error}},
-           {:timeout, :timer.seconds(data.keep_alive), :ping}
-         ]}
+        {:reply, from, {:error, error}}
     end
   end
 
-  defp handle_packet(%Packet.Pubcomp{} = pubcomp, data) do
+  defp handle_packet(%Packet.Pubcomp{} = pubcomp, _) do
     from = Process.get(pubcomp.packet_identifier)
+    Process.delete(pubcomp.packet_identifier)
 
-    {:keep_state_and_data,
-     [
-       {:reply, from, :ok},
-       {:timeout, :timer.seconds(data.keep_alive), :ping}
-     ]}
+    {:reply, from, :ok}
   end
 end
