@@ -48,14 +48,14 @@ defmodule StarflareMqtt.Client.Connection do
       buffer: ""
     }
 
-    {:ok, :disconnected, data, [{:next_event, :internal, :connect}]}
+    {:ok, :connecting, data, [{:next_event, :internal, :connect}]}
   end
 
   @impl true
   def callback_mode, do: :handle_event_function
 
   @impl true
-  def handle_event(:internal, :connect, :disconnected, data) do
+  def handle_event(:internal, :connect, :connecting, data) do
     %__MODULE__{
       host: host,
       port: port,
@@ -79,15 +79,16 @@ defmodule StarflareMqtt.Client.Connection do
       data = %{data | socket: socket}
       data = %{data | keep_alive: keep_alive}
 
-      {:next_state, :connected, data}
+      {:keep_state, data}
     else
       _error ->
         connect_timeout = {:timeout, :timer.seconds(1), :connect}
-        {:keep_state_and_data, connect_timeout}
+        {:next_state, :disconnected, data, connect_timeout}
     end
   end
 
-  def handle_event(:info, {:tcp, socket, packet}, :connected, %{socket: socket} = data) do
+  def handle_event(:info, {:tcp, socket, packet}, state, %{socket: socket} = data)
+      when state in [:connecting, :connected] do
     :inet.setopts(socket, active: :once)
 
     with {:ok, packets, buffer} <- handle_buffer(data.buffer <> packet, []) do
@@ -102,7 +103,7 @@ defmodule StarflareMqtt.Client.Connection do
     end
   end
 
-  def handle_event(:info, {:tcp_closed, socket}, :connected, %{socket: socket} = data) do
+  def handle_event(:info, {:tcp_closed, socket}, _state, %{socket: socket} = data) do
     :gen_tcp.close(socket)
     data = %{data | socket: nil}
 
@@ -124,38 +125,39 @@ defmodule StarflareMqtt.Client.Connection do
     end
   end
 
-  def handle_event({:call, from}, {:send, _packet}, :disconnected, _data) do
+  def handle_event({:call, from}, {:send, _packet}, state, _data) do
     connect_timeout = {:timeout, :timer.seconds(1), :connect}
-    {:keep_state_and_data, [{:reply, from, {:error, :disconnected}}, connect_timeout]}
+    {:keep_state_and_data, [{:reply, from, {:error, state}}, connect_timeout]}
   end
 
   def handle_event(:timeout, :ping, :connected, %{socket: socket} = data) do
     case send_packet(socket, %Packet.Pingreq{}) do
-      :ok -> :keep_state_and_data
-      _error -> {:next_state, :disconnected, data}
+      :ok ->
+        :keep_state_and_data
+
+      _error ->
+        connect_timeout = {:timeout, :timer.seconds(1), :connect}
+        {:next_state, :disconnected, data, connect_timeout}
     end
   end
 
-  def handle_event(:timeout, :connect, :disconnected, _) do
-    {:keep_state_and_data, [{:next_event, :internal, :connect}]}
+  def handle_event(:timeout, :connect, :disconnected, data) do
+    {:next_state, :connecting, data, [{:next_event, :internal, :connect}]}
   end
 
   defp handle_connection(%Packet.Connack{} = connack, data) do
     %Packet.Connack{properties: properties} = connack
 
-    {data, properties} =
-      case Keyword.pop(properties, :assigned_client_identifier) do
-        {nil, properties} ->
-          {data, properties}
-
-        {assigned_client_identifier, properties} ->
-          {%{data | clientid: assigned_client_identifier}, properties}
+    data =
+      case Keyword.get(properties, :assigned_client_identifier) do
+        nil -> {data, properties}
+        assigned_client_identifier -> %{data | clientid: assigned_client_identifier}
       end
 
-    {data, properties} =
-      case Keyword.pop(properties, :server_keep_alive) do
-        {nil, properties} -> {data, properties}
-        {server_keep_alive, properties} -> {%{data | keep_alive: server_keep_alive}, properties}
+    data =
+      case Keyword.get(properties, :server_keep_alive) do
+        nil -> data
+        server_keep_alive -> %{data | keep_alive: server_keep_alive}
       end
 
     data = %{data | properties: properties}
