@@ -62,9 +62,6 @@ defmodule StarflareMqtt.Packet do
            {:ok, data} <- unquote(module).decode(encoded_data, flags) do
         {:ok, data, rest}
       else
-        "" ->
-          {:ok, nil, data}
-
         _ ->
           {:ok, nil, data}
 
