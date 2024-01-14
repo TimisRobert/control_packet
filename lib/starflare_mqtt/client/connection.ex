@@ -76,30 +76,28 @@ defmodule StarflareMqtt.Client.Connection do
 
     with {:ok, socket} <- :gen_tcp.connect(to_charlist(host), port, opts),
          :ok <- send_packet(socket, connect) do
-      data =
-        data
-        |> Map.put(:socket, socket)
-        |> Map.put(:keep_alive, keep_alive)
+      data = %{data | socket: socket}
+      data = %{data | keep_alive: keep_alive}
 
       {:next_state, :connected, data}
     else
       _error ->
-        {:keep_state_and_data, [{:timeout, :timer.seconds(1), :connect}]}
+        connect_timeout = {:timeout, :timer.seconds(1), :connect}
+        {:keep_state_and_data, connect_timeout}
     end
   end
 
   def handle_event(:info, {:tcp, socket, packet}, :connected, %{socket: socket} = data) do
     :inet.setopts(socket, active: :once)
 
-    with {:ok, packets, buffer} <- handle_buffer(data.buffer <> packet, data, []) do
+    with {:ok, packets, buffer} <- handle_buffer(data.buffer <> packet, []) do
       data = %{data | buffer: buffer}
 
-      case handle_packets(packets, data, []) do
-        list when is_list(list) ->
-          {:keep_state, data, [{:timeout, :timer.seconds(data.keep_alive), :ping} | list]}
+      timeout = {:timeout, :timer.seconds(data.keep_alive), :ping}
 
-        next_state ->
-          next_state
+      case handle_packets(packets, data, []) do
+        list when is_list(list) -> {:keep_state, data, [timeout | list]}
+        next_state -> next_state
       end
     end
   end
@@ -108,24 +106,27 @@ defmodule StarflareMqtt.Client.Connection do
     :gen_tcp.close(socket)
     data = %{data | socket: nil}
 
-    {:next_state, :disconnected, data, [{:next_event, :internal, :connect}]}
+    connect_timeout = {:timeout, :timer.seconds(1), :connect}
+    {:next_state, :disconnected, data, connect_timeout}
   end
 
   def handle_event({:call, from}, {:send, packet}, :connected, %{socket: socket} = data) do
+    timeout = {:timeout, :timer.seconds(data.keep_alive), :ping}
+
     case send_packet(socket, packet) do
       :ok ->
         Process.put(packet.packet_identifier, from)
 
-        {:keep_state_and_data, [{:timeout, :timer.seconds(data.keep_alive), :ping}]}
+        {:keep_state_and_data, timeout}
 
       error ->
-        {:keep_state_and_data,
-         [{:reply, from, {:error, error}}, {:timeout, :timer.seconds(data.keep_alive), :ping}]}
+        {:keep_state_and_data, [{:reply, from, {:error, error}}, timeout]}
     end
   end
 
   def handle_event({:call, from}, {:send, _packet}, :disconnected, _data) do
-    {:keep_state_and_data, [{:reply, from, {:error, :disconnected}}]}
+    connect_timeout = {:timeout, :timer.seconds(1), :connect}
+    {:keep_state_and_data, [{:reply, from, {:error, :disconnected}}, connect_timeout]}
   end
 
   def handle_event(:timeout, :ping, :connected, %{socket: socket} = data) do
@@ -142,24 +143,25 @@ defmodule StarflareMqtt.Client.Connection do
   defp handle_connection(%Packet.Connack{} = connack, data) do
     %Packet.Connack{properties: properties} = connack
 
-    {assigned_client_identifier, properties} =
-      Keyword.pop(properties, :assigned_client_identifier)
+    {data, properties} =
+      case Keyword.pop(properties, :assigned_client_identifier) do
+        {nil, properties} ->
+          {data, properties}
 
-    data =
-      if assigned_client_identifier,
-        do: %{data | clientid: assigned_client_identifier},
-        else: data
+        {assigned_client_identifier, properties} ->
+          {%{data | clientid: assigned_client_identifier}, properties}
+      end
 
-    {server_keep_alive, properties} = Keyword.pop(properties, :server_keep_alive)
-
-    data =
-      if server_keep_alive,
-        do: %{data | keep_alive: server_keep_alive},
-        else: data
+    {data, properties} =
+      case Keyword.pop(properties, :server_keep_alive) do
+        {nil, properties} -> {data, properties}
+        {server_keep_alive, properties} -> {%{data | keep_alive: server_keep_alive}, properties}
+      end
 
     data = %{data | properties: properties}
+    timeout = {:timeout, :timer.seconds(data.keep_alive), :ping}
 
-    {:next_state, :connected, data, [{:timeout, :timer.seconds(data.keep_alive), :ping}]}
+    {:next_state, :connected, data, timeout}
   end
 
   defp send_packet(socket, packet) do
@@ -168,17 +170,17 @@ defmodule StarflareMqtt.Client.Connection do
     end
   end
 
-  defp handle_buffer("", _data, list) do
+  defp handle_buffer("", list) do
     {:ok, list, ""}
   end
 
-  defp handle_buffer(buffer, data, list) do
+  defp handle_buffer(buffer, list) do
     case Packet.decode(buffer) do
       {:ok, nil, rest} ->
         {:ok, list, rest}
 
       {:ok, decoded_packet, rest} ->
-        handle_buffer(rest, data, [decoded_packet | list])
+        handle_buffer(rest, [decoded_packet | list])
 
       {:error, error} ->
         {:error, error}
@@ -186,26 +188,26 @@ defmodule StarflareMqtt.Client.Connection do
   end
 
   defp handle_packets([packet | packets], data, list) do
+    timeout = {:timeout, :timer.seconds(data.keep_alive), :ping}
+    connect_timeout = {:timeout, :timer.seconds(1), :connect}
+
     case packet do
       %Packet.Connack{reason_code: :success} = connack ->
         handle_connection(connack, data)
 
       %Packet.Connack{reason_code: _reason_code} ->
-        {:next_state, :disconnected, data, [{:timeout, :timer.seconds(1), :connect}]}
+        {:next_state, :disconnected, data, connect_timeout}
 
       %Packet.Disconnect{} ->
-        {:next_state, :disconnected, data, [{:timeout, :timer.seconds(1), :connect}]}
+        {:next_state, :disconnected, data, connect_timeout}
 
       %Packet.Pingresp{} ->
-        {:keep_state, data, [{:timeout, :timer.seconds(data.keep_alive), :ping}]}
+        {:keep_state, data, timeout}
 
       packet ->
-        from = Process.delete(packet.packet_identifier)
-
-        if from do
-          handle_packets(packets, data, [{:reply, from, packet} | list])
-        else
-          handle_packets(packets, data, list)
+        case Process.delete(packet.packet_identifier) do
+          nil -> handle_packets(packets, data, list)
+          from -> handle_packets(packets, data, [{:reply, from, packet} | list])
         end
     end
   end
