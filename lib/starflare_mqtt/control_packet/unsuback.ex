@@ -1,5 +1,6 @@
 defmodule StarflareMqtt.ControlPacket.Unsuback do
   @moduledoc false
 
-  defstruct [:packet_identifier, :reason_codes, :properties]
+  @enforce_keys :packet_identifier
+  defstruct packet_identifier: nil, reason_codes: [], properties: []
 end

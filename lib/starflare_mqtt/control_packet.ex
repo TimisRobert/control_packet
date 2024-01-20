@@ -409,7 +409,6 @@ defmodule StarflareMqtt.ControlPacket do
     <<_::binary-size(size), rest::binary-size(vbi)>> = rest
 
     <<reason_code, rest::binary>> = rest
-
     {:ok, reason_code} = decode_reason_code(@disconnect, reason_code)
 
     {:ok, vbi} = decode_vbi(rest)
@@ -426,7 +425,6 @@ defmodule StarflareMqtt.ControlPacket do
     <<_::binary-size(size), rest::binary-size(vbi)>> = rest
 
     <<reason_code, rest::binary>> = rest
-
     {:ok, reason_code} = decode_reason_code(@auth, reason_code)
 
     {:ok, vbi} = decode_vbi(rest)
@@ -452,27 +450,22 @@ defmodule StarflareMqtt.ControlPacket do
       properties: properties
     } = connect
 
-    {:ok, will_qos} = encode_qos(will_qos || :at_most_once)
-
+    {:ok, will_qos} = encode_qos(will_qos)
     {:ok, properties} = encode_properties(@connect, properties)
     {:ok, vbi} = encode_vbi(byte_size(properties))
 
-    clientid = clientid || ""
-
-    clientid_size = byte_size(clientid)
-
     data = <<
-      encode_boolean(!!username)::1,
-      encode_boolean(!!password)::1,
+      encode_boolean(username)::1,
+      encode_boolean(password)::1,
       encode_boolean(will_retain)::1,
       will_qos::2,
-      encode_boolean(!!will)::1,
+      encode_boolean(will)::1,
       encode_boolean(clean_start)::1,
       0::1,
       keep_alive::16,
       vbi::binary,
       properties::binary,
-      clientid_size::16,
+      byte_size(clientid)::16,
       clientid::binary
     >>
 
@@ -481,19 +474,15 @@ defmodule StarflareMqtt.ControlPacket do
         %{properties: properties, topic: topic, payload: payload} = will
 
         {:ok, properties} = encode_properties(:will, properties)
-        properties_size = byte_size(properties)
-        {:ok, vbi} = encode_vbi(properties_size)
-
-        topic_size = byte_size(topic)
-        payload_size = byte_size(payload)
+        {:ok, vbi} = encode_vbi(byte_size(properties))
 
         data <>
           <<
             vbi::binary,
             properties::binary,
-            topic_size::16,
+            byte_size(topic)::16,
             topic::binary,
-            payload_size::16,
+            byte_size(payload)::16,
             payload::binary
           >>
       else
@@ -501,25 +490,18 @@ defmodule StarflareMqtt.ControlPacket do
       end
 
     data =
-      if username do
-        size = byte_size(username)
-        data <> <<size::16, username::binary>>
-      else
-        data
-      end
+      if username,
+        do: data <> <<byte_size(username)::16, username::binary>>,
+        else: data
 
     data =
-      if password do
-        size = byte_size(password)
-        data <> <<size::16, password::binary>>
-      else
-        data
-      end
+      if password,
+        do: data <> <<byte_size(password)::16, password::binary>>,
+        else: data
 
     data = <<4::16, "MQTT", 5, data::binary>>
 
-    size = byte_size(data)
-    {:ok, vbi} = encode_vbi(size)
+    {:ok, vbi} = encode_vbi(byte_size(data))
 
     <<@connect::4, 0::4, vbi::binary, data::binary>>
   end
@@ -544,8 +526,7 @@ defmodule StarflareMqtt.ControlPacket do
       properties::binary
     >>
 
-    size = byte_size(data)
-    {:ok, vbi} = encode_vbi(size)
+    {:ok, vbi} = encode_vbi(byte_size(data))
 
     <<@connack::4, 0::4, vbi::binary, data::binary>>
   end
@@ -561,36 +542,28 @@ defmodule StarflareMqtt.ControlPacket do
       payload: payload
     } = publish
 
-    topic_name_size = byte_size(topic_name)
-
     data = <<
-      topic_name_size::16,
+      byte_size(topic_name)::16,
       topic_name::binary
     >>
 
-    if qos_level !== :at_most_once do
-      data <> <<packet_identifier::16>>
-    else
-      data
-    end
+    if qos_level !== :at_most_once,
+      do: data <> <<packet_identifier::16>>,
+      else: data
 
     {:ok, properties} = encode_properties(@publish, properties)
     {:ok, vbi} = encode_vbi(byte_size(properties))
-
-    payload_size = byte_size(payload)
 
     data =
       data <>
         <<
           vbi::binary,
           properties::binary,
-          payload_size::16,
+          byte_size(payload)::16,
           payload::binary
         >>
 
-    size = byte_size(data)
-    {:ok, vbi} = encode_vbi(size)
-
+    {:ok, vbi} = encode_vbi(byte_size(data))
     {:ok, qos_level} = encode_qos(qos_level)
 
     <<
@@ -616,8 +589,7 @@ defmodule StarflareMqtt.ControlPacket do
 
     data = <<packet_identifier::16, reason_code, vbi::binary, properties::binary>>
 
-    size = byte_size(data)
-    {:ok, vbi} = encode_vbi(size)
+    {:ok, vbi} = encode_vbi(byte_size(data))
 
     <<@puback::4, 0::4, vbi::binary, data::binary>>
   end
@@ -635,8 +607,7 @@ defmodule StarflareMqtt.ControlPacket do
 
     data = <<packet_identifier::16, reason_code, vbi::binary, properties::binary>>
 
-    size = byte_size(data)
-    {:ok, vbi} = encode_vbi(size)
+    {:ok, vbi} = encode_vbi(byte_size(data))
 
     <<@pubrec::4, 0::4, vbi::binary, data::binary>>
   end
@@ -654,8 +625,7 @@ defmodule StarflareMqtt.ControlPacket do
 
     data = <<packet_identifier::16, reason_code, vbi::binary, properties::binary>>
 
-    size = byte_size(data)
-    {:ok, vbi} = encode_vbi(size)
+    {:ok, vbi} = encode_vbi(byte_size(data))
 
     <<@pubrel::4, 2::4, vbi::binary, data::binary>>
   end
@@ -673,8 +643,7 @@ defmodule StarflareMqtt.ControlPacket do
 
     data = <<packet_identifier::16, reason_code, vbi::binary, properties::binary>>
 
-    size = byte_size(data)
-    {:ok, vbi} = encode_vbi(size)
+    {:ok, vbi} = encode_vbi(byte_size(data))
 
     <<@pubcomp::4, 0::4, vbi::binary, data::binary>>
   end
@@ -692,8 +661,7 @@ defmodule StarflareMqtt.ControlPacket do
 
     data = <<packet_identifier::16, vbi::binary, properties::binary, topic_filters::binary>>
 
-    size = byte_size(data)
-    {:ok, vbi} = encode_vbi(size)
+    {:ok, vbi} = encode_vbi(byte_size(data))
 
     <<@subscribe::4, 2::4, vbi::binary, data::binary>>
   end
@@ -711,8 +679,7 @@ defmodule StarflareMqtt.ControlPacket do
 
     data = <<packet_identifier::16, vbi::binary, properties::binary, reason_codes::binary>>
 
-    size = byte_size(data)
-    {:ok, vbi} = encode_vbi(size)
+    {:ok, vbi} = encode_vbi(byte_size(data))
 
     <<@suback::4, 0::4, vbi::binary, data::binary>>
   end
@@ -730,8 +697,7 @@ defmodule StarflareMqtt.ControlPacket do
 
     data = <<packet_identifier::16, vbi::binary, properties::binary, topic_filters::binary>>
 
-    size = byte_size(data)
-    {:ok, vbi} = encode_vbi(size)
+    {:ok, vbi} = encode_vbi(byte_size(data))
 
     <<@unsubscribe::4, 2::4, vbi::binary, data::binary>>
   end
@@ -749,8 +715,7 @@ defmodule StarflareMqtt.ControlPacket do
 
     data = <<packet_identifier::16, vbi::binary, properties::binary, reason_codes::binary>>
 
-    size = byte_size(data)
-    {:ok, vbi} = encode_vbi(size)
+    {:ok, vbi} = encode_vbi(byte_size(data))
 
     <<@unsuback::4, 0::4, vbi::binary, data::binary>>
   end
@@ -767,8 +732,7 @@ defmodule StarflareMqtt.ControlPacket do
 
     data = <<reason_code, vbi::binary, properties::binary>>
 
-    size = byte_size(data)
-    {:ok, vbi} = encode_vbi(size)
+    {:ok, vbi} = encode_vbi(byte_size(data))
 
     <<@disconnect::4, 0::4, vbi::binary, data::binary>>
   end
@@ -785,8 +749,7 @@ defmodule StarflareMqtt.ControlPacket do
 
     data = <<reason_code, vbi::binary, properties::binary>>
 
-    size = byte_size(data)
-    {:ok, vbi} = encode_vbi(size)
+    {:ok, vbi} = encode_vbi(byte_size(data))
 
     <<@auth::4, 0::4, vbi::binary, data::binary>>
   end
@@ -800,7 +763,7 @@ defmodule StarflareMqtt.ControlPacket do
   end
 
   defp encode_boolean(boolean) do
-    (boolean && 1) || 0
+    (!!boolean && 1) || 0
   end
 
   defp encode_reason_codes(code, list), do: encode_reason_codes(code, list, <<>>)
@@ -1040,13 +1003,11 @@ defmodule StarflareMqtt.ControlPacket do
 
   defp encode_topic_filters([{topic_filter, sub_opts} | list], data) do
     %{retain_handling: retain_handling, rap: rap, nl: nl, qos: qos} = sub_opts
-    length = byte_size(topic_filter)
-
     {:ok, retain_handling} = encode_retain_handling(retain_handling)
     {:ok, qos} = encode_qos(qos)
 
     encoded_data = <<
-      length::16,
+      byte_size(topic_filter)::16,
       topic_filter::binary,
       0::2,
       retain_handling::2,
@@ -1076,7 +1037,6 @@ defmodule StarflareMqtt.ControlPacket do
     end
   end
 
-  defp encode_properties(_, nil), do: {:ok, <<>>}
   defp encode_properties(_, []), do: {:ok, <<>>}
 
   defp encode_properties(code, properties) do
@@ -1097,21 +1057,18 @@ defmodule StarflareMqtt.ControlPacket do
 
   defp encode_properties(code, [{:content_type, string} | list], data)
        when code in [@publish, :will] do
-    length = byte_size(string)
-    data = data <> <<@content_type, length::16, string::binary>>
+    data = data <> <<@content_type, byte_size(string)::16, string::binary>>
     encode_properties(code, list, data)
   end
 
   defp encode_properties(code, [{:response_topic, string} | list], data)
        when code in [@publish, :will] do
-    length = byte_size(string)
-    data = data <> <<@response_topic, length::16, string::binary>>
+    data = data <> <<@response_topic, byte_size(string)::16, string::binary>>
     encode_properties(code, list, data)
   end
 
   defp encode_properties(code, [{:correlation_data, string} | list], data) do
-    length = byte_size(string)
-    data = data <> <<@correlation_data, length::16, string::binary>>
+    data = data <> <<@correlation_data, byte_size(string)::16, string::binary>>
     encode_properties(code, list, data)
   end
 
@@ -1130,8 +1087,7 @@ defmodule StarflareMqtt.ControlPacket do
 
   defp encode_properties(code, [{:assigned_client_identifier, string} | list], data)
        when code in [@connack] do
-    length = byte_size(string)
-    data = data <> <<@assigned_client_identifier, length::16, string::binary>>
+    data = data <> <<@assigned_client_identifier, byte_size(string)::16, string::binary>>
     encode_properties(code, list, data)
   end
 
@@ -1143,15 +1099,13 @@ defmodule StarflareMqtt.ControlPacket do
 
   defp encode_properties(code, [{:authentication_method, string} | list], data)
        when code in [@connect, @connack, @auth] do
-    length = byte_size(string)
-    data = data <> <<@authentication_method, length::16, string::binary>>
+    data = data <> <<@authentication_method, byte_size(string)::16, string::binary>>
     encode_properties(code, list, data)
   end
 
   defp encode_properties(code, [{:authentication_data, string} | list], data)
        when code in [@connect, @connack, @auth] do
-    length = byte_size(string)
-    data = data <> <<@authentication_data, length::16, string::binary>>
+    data = data <> <<@authentication_data, byte_size(string)::16, string::binary>>
     encode_properties(code, list, data)
   end
 
@@ -1175,22 +1129,19 @@ defmodule StarflareMqtt.ControlPacket do
 
   defp encode_properties(code, [{:response_information, string} | list], data)
        when code in [@connack] do
-    length = byte_size(string)
-    data = data <> <<@response_information, length::16, string::binary>>
+    data = data <> <<@response_information, byte_size(string)::16, string::binary>>
     encode_properties(code, list, data)
   end
 
   defp encode_properties(code, [{:server_reference, string} | list], data)
        when code in [@connack, @disconnect] do
-    length = byte_size(string)
-    data = data <> <<@server_reference, length::16, string::binary>>
+    data = data <> <<@server_reference, byte_size(string)::16, string::binary>>
     encode_properties(code, list, data)
   end
 
   defp encode_properties(code, [{:reason_string, string} | list], data)
        when code not in [@connect, @pingreq, @pingresp, @unsubscribe, :will] do
-    length = byte_size(string)
-    data = data <> <<@reason_string, length::16, string::binary>>
+    data = data <> <<@reason_string, byte_size(string)::16, string::binary>>
     encode_properties(code, list, data)
   end
 
@@ -1225,16 +1176,13 @@ defmodule StarflareMqtt.ControlPacket do
   end
 
   defp encode_properties(code, [{:user_property, {key, value}} | list], data) do
-    key_length = byte_size(key)
-    value_length = byte_size(value)
-
     data =
       data <>
         <<
           @user_property,
-          key_length::16,
+          byte_size(key)::16,
           key::binary,
-          value_length::16,
+          byte_size(value)::16,
           value::binary
         >>
 
@@ -1269,7 +1217,7 @@ defmodule StarflareMqtt.ControlPacket do
 
   defp encode_properties(_, _, _), do: {:error, :malformed_packet}
 
-  defp decode_reason_codes(_, <<>>, list), do: {:ok, list}
+  defp decode_reason_codes(_, <<>>, list), do: {:ok, Enum.reverse(list)}
 
   defp decode_reason_codes(code, <<data::binary>>, list) do
     <<reason_code, rest::binary>> = data
@@ -1277,7 +1225,7 @@ defmodule StarflareMqtt.ControlPacket do
     decode_reason_codes(code, rest, [reason_code | list])
   end
 
-  defp decode_topic_filters(<<>>, list), do: {:ok, list}
+  defp decode_topic_filters(<<>>, list), do: {:ok, Enum.reverse(list)}
 
   defp decode_topic_filters(<<data::binary>>, list) do
     <<
@@ -1315,19 +1263,19 @@ defmodule StarflareMqtt.ControlPacket do
     end
   end
 
-  def decode_vbi(data) do
+  defp decode_vbi(data) do
     decode_vbi(data, 1, 0)
   end
 
-  def decode_vbi(<<1::1, num::7, rest::binary>>, multiplier, total) do
+  defp decode_vbi(<<1::1, num::7, rest::binary>>, multiplier, total) do
     decode_vbi(rest, multiplier <<< 7, total + num * multiplier)
   end
 
-  def decode_vbi(<<0::1, num::7, _::binary>>, multiplier, total) do
+  defp decode_vbi(<<0::1, num::7, _::binary>>, multiplier, total) do
     {:ok, total + num * multiplier}
   end
 
-  def decode_vbi(_, _, _), do: {:error, :malformed_packet}
+  defp decode_vbi(_, _, _), do: {:error, :malformed_packet}
 
   defp vbi_size(<<0::1, _::7, _::binary>>), do: 1
   defp vbi_size(<<1::1, _::7, 0::1, _::7, _::binary>>), do: 2
