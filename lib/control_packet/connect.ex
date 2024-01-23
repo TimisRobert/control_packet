@@ -1,4 +1,4 @@
-defmodule StarflareMqtt.ControlPacket.Connect do
+defmodule ControlPacket.Connect do
   @moduledoc false
 
   defstruct clientid: "",

@@ -1,4 +1,4 @@
-defmodule StarflareMqtt.ControlPacket.Unsubscribe do
+defmodule ControlPacket.Unsubscribe do
   @moduledoc false
 
   @enforce_keys :packet_identifier

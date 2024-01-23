@@ -1,4 +1,4 @@
-defmodule StarflareMqtt.ControlPacket.Subscribe do
+defmodule ControlPacket.Subscribe do
   @moduledoc false
 
   @enforce_keys :packet_identifier

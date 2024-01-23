@@ -1,4 +1,4 @@
-defmodule StarflareMqtt.ControlPacket.Pubcomp do
+defmodule ControlPacket.Pubrel do
   @moduledoc false
 
   @enforce_keys :packet_identifier

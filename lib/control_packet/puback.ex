@@ -1,4 +1,4 @@
-defmodule StarflareMqtt.ControlPacket.Puback do
+defmodule ControlPacket.Puback do
   @moduledoc false
 
   @enforce_keys :packet_identifier

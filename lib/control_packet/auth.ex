@@ -1,4 +1,4 @@
-defmodule StarflareMqtt.ControlPacket.Disconnect do
+defmodule ControlPacket.Auth do
   @moduledoc false
 
   defstruct reason_code: :success, properties: []

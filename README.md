@@ -1,3 +1,3 @@
-# StarflareMqtt
+# ControlPacket
 
-Broker and client implementation of the MQTT 5 standard
+MQTT 5 packet decoder and encoder

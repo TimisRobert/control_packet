@@ -1,4 +1,4 @@
-defmodule StarflareMqtt.ControlPacket.Publish do
+defmodule ControlPacket.Publish do
   @moduledoc false
 
   @enforce_keys [:topic_name, :packet_identifier]
