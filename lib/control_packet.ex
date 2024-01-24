@@ -874,6 +874,475 @@ defmodule ControlPacket do
     end
   end
 
+  defp decode_reason_codes(code, data) do
+    decode_reason_codes(code, data, [])
+  end
+
+  defp decode_reason_codes(_, <<>>, list), do: {:ok, Enum.reverse(list)}
+
+  defp decode_reason_codes(code, <<data::bytes>>, list) do
+    <<reason_code, rest::bytes>> = data
+    {:ok, reason_code} = decode_reason_code(code, reason_code)
+    decode_reason_codes(code, rest, [reason_code | list])
+  end
+
+  defp decode_topic_filters(data) do
+    decode_topic_filters(data, [])
+  end
+
+  defp decode_topic_filters(<<>>, list), do: {:ok, Enum.reverse(list)}
+
+  defp decode_topic_filters(<<data::bytes>>, list) do
+    <<
+      length::16,
+      topic_filter::bytes-size(length),
+      0::2,
+      retain_handling::2,
+      rap::1,
+      nl::1,
+      qos::2,
+      rest::bytes
+    >> = data
+
+    {:ok, retain_handling} = decode_retain_handling(retain_handling)
+    {:ok, qos} = decode_qos(qos)
+
+    decode_topic_filters(rest, [
+      {topic_filter,
+       %{
+         retain_handling: retain_handling,
+         rap: rap == 1,
+         nl: nl == 1,
+         qos: qos
+       }}
+      | list
+    ])
+  end
+
+  defp decode_retain_handling(integer) do
+    case integer do
+      @send_when_subscribed -> {:ok, :send_when_subscribed}
+      @send_if_no_subscription -> {:ok, :send_if_no_subscription}
+      @dont_send -> {:ok, :dont_send}
+      _ -> {:error, :protocol_error}
+    end
+  end
+
+  defp decode_vbi(data) do
+    decode_vbi(data, 1, 0)
+  end
+
+  defp decode_vbi(<<1::1, num::7, rest::bytes>>, multiplier, total) do
+    decode_vbi(rest, multiplier <<< 7, total + num * multiplier)
+  end
+
+  defp decode_vbi(<<0::1, num::7, _::bytes>>, multiplier, total) do
+    size = if total === 0, do: 1, else: trunc(:math.log(total) / :math.log(128)) + 1
+    {:ok, total + num * multiplier, size}
+  end
+
+  defp decode_vbi(_, _, _), do: {:error, :malformed_packet}
+
+  defp decode_reason_code(code, @success)
+       when code in [@connack, @puback, @pubrec, @pubrel, @pubcomp, @unsuback, @auth] do
+    {:ok, :success}
+  end
+
+  defp decode_reason_code(code, @normal_disconnection) when code in [@disconnect] do
+    {:ok, :normal_disconnection}
+  end
+
+  defp decode_reason_code(code, @granted_qos_0) when code in [@suback] do
+    {:ok, :granted_qos_0}
+  end
+
+  defp decode_reason_code(code, @granted_qos_1) when code in [@suback] do
+    {:ok, :granted_qos_1}
+  end
+
+  defp decode_reason_code(code, @granted_qos_2) when code in [@suback] do
+    {:ok, :granted_qos_2}
+  end
+
+  defp decode_reason_code(code, @disconnect_with_will_message) when code in [@disconnect] do
+    {:ok, :disconnect_with_will_message}
+  end
+
+  defp decode_reason_code(code, @no_matching_subscribers) when code in [@puback, @pubrec] do
+    {:ok, :no_matching_subscribers}
+  end
+
+  defp decode_reason_code(code, @no_subscription_existed) when code in [@unsuback] do
+    {:ok, :no_subscription_existed}
+  end
+
+  defp decode_reason_code(code, @continue_authentication) when code in [@auth] do
+    {:ok, :continue_authentication}
+  end
+
+  defp decode_reason_code(code, @re_authenticate) when code in [@auth] do
+    {:ok, :re_authenticate}
+  end
+
+  defp decode_reason_code(code, @unspecified_error)
+       when code in [@connack, @puback, @pubrec, @suback, @unsuback, @disconnect] do
+    {:ok, :unspecified_error}
+  end
+
+  defp decode_reason_code(code, @malformed_packet)
+       when code in [@connack, @disconnect] do
+    {:ok, :malformed_packet}
+  end
+
+  defp decode_reason_code(code, @protocol_error)
+       when code in [@connack, @disconnect] do
+    {:ok, :protocol_error}
+  end
+
+  defp decode_reason_code(code, @implementation_specific_error)
+       when code in [@connack, @puback, @pubrec, @suback, @unsuback, @disconnect] do
+    {:ok, :implementation_specific_error}
+  end
+
+  defp decode_reason_code(code, @unsupported_protocol_error)
+       when code in [@connack] do
+    {:ok, :unsupported_protocol_error}
+  end
+
+  defp decode_reason_code(code, @client_identifier_not_valid)
+       when code in [@connack] do
+    {:ok, :client_identifier_not_valid}
+  end
+
+  defp decode_reason_code(code, @bad_username_or_password)
+       when code in [@connack] do
+    {:ok, :bad_username_or_password}
+  end
+
+  defp decode_reason_code(code, @not_authorized)
+       when code in [@connack, @puback, @pubrec, @suback, @unsuback, @disconnect] do
+    {:ok, :not_authorized}
+  end
+
+  defp decode_reason_code(code, @server_unavailable) when code in [@connack] do
+    {:ok, :server_unavailable}
+  end
+
+  defp decode_reason_code(code, @server_busy)
+       when code in [@connack, @disconnect] do
+    {:ok, :server_busy}
+  end
+
+  defp decode_reason_code(code, @banned) when code in [@connack] do
+    {:ok, :banned}
+  end
+
+  defp decode_reason_code(code, @server_shutting_down) when code in [@disconnect] do
+    {:ok, :server_shutting_down}
+  end
+
+  defp decode_reason_code(code, @bad_authentication_method)
+       when code in [@connack, @disconnect] do
+    {:ok, :bad_authentication_method}
+  end
+
+  defp decode_reason_code(code, @keep_alive_timeout) when code in [@disconnect] do
+    {:ok, :keep_alive_timeout}
+  end
+
+  defp decode_reason_code(code, @session_taken_over) when code in [@disconnect] do
+    {:ok, :session_taken_over}
+  end
+
+  defp decode_reason_code(code, @topic_filter_invalid)
+       when code in [@suback, @unsuback, @disconnect] do
+    {:ok, :topic_filter_invalid}
+  end
+
+  defp decode_reason_code(code, @topic_name_invalid)
+       when code in [@connack, @puback, @pubrec, @disconnect] do
+    {:ok, :topic_name_invalid}
+  end
+
+  defp decode_reason_code(code, @packet_identifier_in_use)
+       when code in [@puback, @pubrec, @suback, @unsuback] do
+    {:ok, :packet_identifier_in_use}
+  end
+
+  defp decode_reason_code(code, @packet_identifier_not_found)
+       when code in [@pubrel, @pubcomp] do
+    {:ok, :packet_identifier_not_found}
+  end
+
+  defp decode_reason_code(code, @receive_maximum_exceeded)
+       when code in [@disconnect] do
+    {:ok, :receive_maximum_exceeded}
+  end
+
+  defp decode_reason_code(code, @topic_alias_invalid)
+       when code in [@disconnect] do
+    {:ok, :topic_alias_invalid}
+  end
+
+  defp decode_reason_code(code, @packet_too_large)
+       when code in [@connack, @disconnect] do
+    {:ok, :packet_too_large}
+  end
+
+  defp decode_reason_code(code, @message_rate_too_high) when code in [@disconnect] do
+    {:ok, :message_rate_too_high}
+  end
+
+  defp decode_reason_code(code, @quota_exceeded)
+       when code in [@connack, @puback, @pubrec, @suback, @disconnect] do
+    {:ok, :quota_exceeded}
+  end
+
+  defp decode_reason_code(code, @administrative_action) when code in [@disconnect] do
+    {:ok, :administrative_action}
+  end
+
+  defp decode_reason_code(code, @payload_format_invalid)
+       when code in [@connack, @puback, @pubrec, @disconnect] do
+    {:ok, :payload_format_invalid}
+  end
+
+  defp decode_reason_code(code, @retain_not_supported)
+       when code in [@connack, @disconnect] do
+    {:ok, :retain_not_supported}
+  end
+
+  defp decode_reason_code(code, @qos_not_supported)
+       when code in [@connack, @disconnect] do
+    {:ok, :qos_not_supported}
+  end
+
+  defp decode_reason_code(code, @use_another_server)
+       when code in [@connack, @disconnect] do
+    {:ok, :use_another_server}
+  end
+
+  defp decode_reason_code(code, @server_moved)
+       when code in [@connack, @disconnect] do
+    {:ok, :server_moved}
+  end
+
+  defp decode_reason_code(code, @shared_subscriptions_not_supported)
+       when code in [@suback, @disconnect] do
+    {:ok, :shared_subscriptions_not_supported}
+  end
+
+  defp decode_reason_code(code, @connection_rate_exceeded)
+       when code in [@connack, @disconnect] do
+    {:ok, :connection_rate_exceeded}
+  end
+
+  defp decode_reason_code(code, @maximum_connect_time) when code in [@disconnect] do
+    {:ok, :maximum_connect_time}
+  end
+
+  defp decode_reason_code(code, @subscription_identifiers_not_supported)
+       when code in [@suback, @disconnect] do
+    {:ok, :subscription_identifiers_not_supported}
+  end
+
+  defp decode_reason_code(code, @wildcard_subscriptions_not_supported)
+       when code in [@suback, @disconnect] do
+    {:ok, :wildcard_subscriptions_not_supported}
+  end
+
+  defp decode_reason_code(_, _) do
+    {:error, :malformed_packet}
+  end
+
+  defp decode_qos(integer) do
+    case integer do
+      @at_most_once -> {:ok, :at_most_once}
+      @at_least_once -> {:ok, :at_least_once}
+      @exactly_once -> {:ok, :exactly_once}
+      _ -> {:error, :malformed_packet}
+    end
+  end
+
+  defp decode_properties(_, <<>>), do: {:ok, nil}
+
+  defp decode_properties(code, data) do
+    decode_properties(code, data, [])
+  end
+
+  defp decode_properties(code, <<@payload_format_indicator, rest::bytes>>, list)
+       when code in [@publish, :will] do
+    <<byte, rest::bytes>> = rest
+    decode_properties(code, rest, [{:payload_format_indicator, byte} | list])
+  end
+
+  defp decode_properties(code, <<@message_expiry_interval, rest::bytes>>, list)
+       when code in [@publish, :will] do
+    <<four_byte::32, rest::bytes>> = rest
+    decode_properties(code, rest, [{:message_expiry_interval, four_byte} | list])
+  end
+
+  defp decode_properties(code, <<@content_type, rest::bytes>>, list)
+       when code in [@publish, :will] do
+    <<length::16, string::bytes-size(length), rest::bytes>> = rest
+    decode_properties(code, rest, [{:content_type, string} | list])
+  end
+
+  defp decode_properties(code, <<@response_topic, rest::bytes>>, list)
+       when code in [@publish, :will] do
+    <<length::16, string::bytes-size(length), rest::bytes>> = rest
+    decode_properties(code, rest, [{:response_topic, string} | list])
+  end
+
+  defp decode_properties(code, <<@correlation_data, rest::bytes>>, list)
+       when code in [@publish, :will] do
+    <<length::16, string::bytes-size(length), rest::bytes>> = rest
+    decode_properties(code, rest, [{:correlation_data, string} | list])
+  end
+
+  defp decode_properties(code, <<@subscription_identifier, rest::bytes>>, list)
+       when code in [@publish, @subscribe] do
+    {:ok, vbi, size} = decode_vbi(rest)
+    <<_::size(size), rest::bytes>> = rest
+    decode_properties(code, rest, [{:subscription_identifier, vbi} | list])
+  end
+
+  defp decode_properties(code, <<@session_expiry_interval, rest::bytes>>, list)
+       when code in [@connect, @connack, @disconnect] do
+    <<four_byte::32, rest::bytes>> = rest
+    decode_properties(code, rest, [{:session_expiry_interval, four_byte} | list])
+  end
+
+  defp decode_properties(code, <<@assigned_client_identifier, rest::bytes>>, list)
+       when code in [@connack] do
+    <<length::16, string::bytes-size(length), rest::bytes>> = rest
+    decode_properties(code, rest, [{:assigned_client_identifier, string} | list])
+  end
+
+  defp decode_properties(code, <<@server_keep_alive, rest::bytes>>, list)
+       when code in [@connack] do
+    <<two_byte::16, rest::bytes>> = rest
+    decode_properties(code, rest, [{:server_keep_alive, two_byte} | list])
+  end
+
+  defp decode_properties(code, <<@authentication_method, rest::bytes>>, list)
+       when code in [@connect, @connack, @auth] do
+    <<length::16, string::bytes-size(length), rest::bytes>> = rest
+    decode_properties(code, rest, [{:authentication_method, string} | list])
+  end
+
+  defp decode_properties(code, <<@authentication_data, rest::bytes>>, list)
+       when code in [@connect, @connack, @auth] do
+    <<length::16, string::bytes-size(length), rest::bytes>> = rest
+    decode_properties(code, rest, [{:authentication_data, string} | list])
+  end
+
+  defp decode_properties(code, <<@request_problem_information, rest::bytes>>, list)
+       when code in [@connect] do
+    <<byte, rest::bytes>> = rest
+    decode_properties(code, rest, [{:request_problem_information, byte} | list])
+  end
+
+  defp decode_properties(code, <<@will_delay_interval, rest::bytes>>, list)
+       when code in [:will] do
+    <<four_byte::32, rest::bytes>> = rest
+    decode_properties(code, rest, [{:will_delay_interval, four_byte} | list])
+  end
+
+  defp decode_properties(code, <<@request_response_information, rest::bytes>>, list)
+       when code in [@connect] do
+    <<byte, rest::bytes>> = rest
+    decode_properties(code, rest, [{:request_response_information, byte} | list])
+  end
+
+  defp decode_properties(code, <<@response_information, rest::bytes>>, list)
+       when code in [@connack] do
+    <<length::16, string::bytes-size(length), rest::bytes>> = rest
+    decode_properties(code, rest, [{:response_information, string} | list])
+  end
+
+  defp decode_properties(code, <<@server_reference, rest::bytes>>, list)
+       when code in [@connack, @disconnect] do
+    <<length::16, string::bytes-size(length), rest::bytes>> = rest
+    decode_properties(code, rest, [{:server_reference, string} | list])
+  end
+
+  defp decode_properties(code, <<@reason_string, rest::bytes>>, list)
+       when code not in [@connect, @pingreq, @pingresp, @unsubscribe, :will] do
+    <<length::16, string::bytes-size(length), rest::bytes>> = rest
+    decode_properties(code, rest, [{:reason_string, string} | list])
+  end
+
+  defp decode_properties(code, <<@receive_maximum, rest::bytes>>, list)
+       when code in [@connect, @connack] do
+    <<two_byte::16, rest::bytes>> = rest
+    decode_properties(code, rest, [{:receive_maximum, two_byte} | list])
+  end
+
+  defp decode_properties(code, <<@topic_alias_maximum, rest::bytes>>, list)
+       when code in [@connect, @connack] do
+    <<two_byte::16, rest::bytes>> = rest
+    decode_properties(code, rest, [{:topic_alias_maximum, two_byte} | list])
+  end
+
+  defp decode_properties(code, <<@topic_alias, rest::bytes>>, list)
+       when code in [@publish] do
+    <<two_byte::16, rest::bytes>> = rest
+    decode_properties(code, rest, [{:topic_alias, two_byte} | list])
+  end
+
+  defp decode_properties(code, <<@maximum_qos, rest::bytes>>, list)
+       when code in [@connack] do
+    <<byte, rest::bytes>> = rest
+    decode_properties(code, rest, [{:maximum_qos, byte} | list])
+  end
+
+  defp decode_properties(code, <<@retain_available, rest::bytes>>, list)
+       when code in [@connack] do
+    <<byte, rest::bytes>> = rest
+    decode_properties(code, rest, [{:retain_available, byte} | list])
+  end
+
+  defp decode_properties(code, <<@user_property, rest::bytes>>, list) do
+    <<
+      key_length::16,
+      key::size(key_length),
+      value_length::16,
+      value::size(value_length),
+      rest::bytes
+    >> = rest
+
+    decode_properties(code, rest, [{:user_property, {key, value}} | list])
+  end
+
+  defp decode_properties(code, <<@maximum_packet_size, rest::bytes>>, list)
+       when code in [@connect, @connack] do
+    <<four_byte::32, rest::bytes>> = rest
+    decode_properties(code, rest, [{:maximum_packet_size, four_byte} | list])
+  end
+
+  defp decode_properties(code, <<@wildcard_subscription_available, rest::bytes>>, list)
+       when code in [@connack] do
+    <<byte, rest::bytes>> = rest
+    decode_properties(code, rest, [{:wildcard_subscription_available, byte} | list])
+  end
+
+  defp decode_properties(code, <<@subscription_identifier_available, rest::bytes>>, list)
+       when code in [@connack] do
+    <<byte, rest::bytes>> = rest
+    decode_properties(code, rest, [{:subscription_identifier_available, byte} | list])
+  end
+
+  defp decode_properties(code, <<@shared_subscription_available, rest::bytes>>, list)
+       when code in [@connack] do
+    <<byte, rest::bytes>> = rest
+    decode_properties(code, rest, [{:shared_subscription_available, byte} | list])
+  end
+
+  defp decode_properties(_, <<>>, list), do: {:ok, list}
+
+  defp decode_properties(_, _, _), do: {:error, :malformed_packet}
+
   defp encode_packet_identifier(:at_most_once, _, data) do
     {:ok, data}
   end
@@ -1365,473 +1834,4 @@ defmodule ControlPacket do
   defp encode_properties(_, [], data), do: {:ok, data}
 
   defp encode_properties(_, _, _), do: {:error, :malformed_packet}
-
-  defp decode_reason_codes(code, data) do
-    decode_reason_codes(code, data, [])
-  end
-
-  defp decode_reason_codes(_, <<>>, list), do: {:ok, Enum.reverse(list)}
-
-  defp decode_reason_codes(code, <<data::bytes>>, list) do
-    <<reason_code, rest::bytes>> = data
-    {:ok, reason_code} = decode_reason_code(code, reason_code)
-    decode_reason_codes(code, rest, [reason_code | list])
-  end
-
-  defp decode_topic_filters(data) do
-    decode_topic_filters(data, [])
-  end
-
-  defp decode_topic_filters(<<>>, list), do: {:ok, Enum.reverse(list)}
-
-  defp decode_topic_filters(<<data::bytes>>, list) do
-    <<
-      length::16,
-      topic_filter::bytes-size(length),
-      0::2,
-      retain_handling::2,
-      rap::1,
-      nl::1,
-      qos::2,
-      rest::bytes
-    >> = data
-
-    {:ok, retain_handling} = decode_retain_handling(retain_handling)
-    {:ok, qos} = decode_qos(qos)
-
-    decode_topic_filters(rest, [
-      {topic_filter,
-       %{
-         retain_handling: retain_handling,
-         rap: rap == 1,
-         nl: nl == 1,
-         qos: qos
-       }}
-      | list
-    ])
-  end
-
-  defp decode_retain_handling(integer) do
-    case integer do
-      @send_when_subscribed -> {:ok, :send_when_subscribed}
-      @send_if_no_subscription -> {:ok, :send_if_no_subscription}
-      @dont_send -> {:ok, :dont_send}
-      _ -> {:error, :protocol_error}
-    end
-  end
-
-  defp decode_vbi(data) do
-    decode_vbi(data, 1, 0)
-  end
-
-  defp decode_vbi(<<1::1, num::7, rest::bytes>>, multiplier, total) do
-    decode_vbi(rest, multiplier <<< 7, total + num * multiplier)
-  end
-
-  defp decode_vbi(<<0::1, num::7, _::bytes>>, multiplier, total) do
-    size = if total === 0, do: 1, else: trunc(:math.log(total) / :math.log(128)) + 1
-    {:ok, total + num * multiplier, size}
-  end
-
-  defp decode_vbi(_, _, _), do: {:error, :malformed_packet}
-
-  defp decode_reason_code(code, @success)
-       when code in [@connack, @puback, @pubrec, @pubrel, @pubcomp, @unsuback, @auth] do
-    {:ok, :success}
-  end
-
-  defp decode_reason_code(code, @normal_disconnection) when code in [@disconnect] do
-    {:ok, :normal_disconnection}
-  end
-
-  defp decode_reason_code(code, @granted_qos_0) when code in [@suback] do
-    {:ok, :granted_qos_0}
-  end
-
-  defp decode_reason_code(code, @granted_qos_1) when code in [@suback] do
-    {:ok, :granted_qos_1}
-  end
-
-  defp decode_reason_code(code, @granted_qos_2) when code in [@suback] do
-    {:ok, :granted_qos_2}
-  end
-
-  defp decode_reason_code(code, @disconnect_with_will_message) when code in [@disconnect] do
-    {:ok, :disconnect_with_will_message}
-  end
-
-  defp decode_reason_code(code, @no_matching_subscribers) when code in [@puback, @pubrec] do
-    {:ok, :no_matching_subscribers}
-  end
-
-  defp decode_reason_code(code, @no_subscription_existed) when code in [@unsuback] do
-    {:ok, :no_subscription_existed}
-  end
-
-  defp decode_reason_code(code, @continue_authentication) when code in [@auth] do
-    {:ok, :continue_authentication}
-  end
-
-  defp decode_reason_code(code, @re_authenticate) when code in [@auth] do
-    {:ok, :re_authenticate}
-  end
-
-  defp decode_reason_code(code, @unspecified_error)
-       when code in [@connack, @puback, @pubrec, @suback, @unsuback, @disconnect] do
-    {:ok, :unspecified_error}
-  end
-
-  defp decode_reason_code(code, @malformed_packet)
-       when code in [@connack, @disconnect] do
-    {:ok, :malformed_packet}
-  end
-
-  defp decode_reason_code(code, @protocol_error)
-       when code in [@connack, @disconnect] do
-    {:ok, :protocol_error}
-  end
-
-  defp decode_reason_code(code, @implementation_specific_error)
-       when code in [@connack, @puback, @pubrec, @suback, @unsuback, @disconnect] do
-    {:ok, :implementation_specific_error}
-  end
-
-  defp decode_reason_code(code, @unsupported_protocol_error)
-       when code in [@connack] do
-    {:ok, :unsupported_protocol_error}
-  end
-
-  defp decode_reason_code(code, @client_identifier_not_valid)
-       when code in [@connack] do
-    {:ok, :client_identifier_not_valid}
-  end
-
-  defp decode_reason_code(code, @bad_username_or_password)
-       when code in [@connack] do
-    {:ok, :bad_username_or_password}
-  end
-
-  defp decode_reason_code(code, @not_authorized)
-       when code in [@connack, @puback, @pubrec, @suback, @unsuback, @disconnect] do
-    {:ok, :not_authorized}
-  end
-
-  defp decode_reason_code(code, @server_unavailable) when code in [@connack] do
-    {:ok, :server_unavailable}
-  end
-
-  defp decode_reason_code(code, @server_busy)
-       when code in [@connack, @disconnect] do
-    {:ok, :server_busy}
-  end
-
-  defp decode_reason_code(code, @banned) when code in [@connack] do
-    {:ok, :banned}
-  end
-
-  defp decode_reason_code(code, @server_shutting_down) when code in [@disconnect] do
-    {:ok, :server_shutting_down}
-  end
-
-  defp decode_reason_code(code, @bad_authentication_method)
-       when code in [@connack, @disconnect] do
-    {:ok, :bad_authentication_method}
-  end
-
-  defp decode_reason_code(code, @keep_alive_timeout) when code in [@disconnect] do
-    {:ok, :keep_alive_timeout}
-  end
-
-  defp decode_reason_code(code, @session_taken_over) when code in [@disconnect] do
-    {:ok, :session_taken_over}
-  end
-
-  defp decode_reason_code(code, @topic_filter_invalid)
-       when code in [@suback, @unsuback, @disconnect] do
-    {:ok, :topic_filter_invalid}
-  end
-
-  defp decode_reason_code(code, @topic_name_invalid)
-       when code in [@connack, @puback, @pubrec, @disconnect] do
-    {:ok, :topic_name_invalid}
-  end
-
-  defp decode_reason_code(code, @packet_identifier_in_use)
-       when code in [@puback, @pubrec, @suback, @unsuback] do
-    {:ok, :packet_identifier_in_use}
-  end
-
-  defp decode_reason_code(code, @packet_identifier_not_found)
-       when code in [@pubrel, @pubcomp] do
-    {:ok, :packet_identifier_not_found}
-  end
-
-  defp decode_reason_code(code, @receive_maximum_exceeded)
-       when code in [@disconnect] do
-    {:ok, :receive_maximum_exceeded}
-  end
-
-  defp decode_reason_code(code, @topic_alias_invalid)
-       when code in [@disconnect] do
-    {:ok, :topic_alias_invalid}
-  end
-
-  defp decode_reason_code(code, @packet_too_large)
-       when code in [@connack, @disconnect] do
-    {:ok, :packet_too_large}
-  end
-
-  defp decode_reason_code(code, @message_rate_too_high) when code in [@disconnect] do
-    {:ok, :message_rate_too_high}
-  end
-
-  defp decode_reason_code(code, @quota_exceeded)
-       when code in [@connack, @puback, @pubrec, @suback, @disconnect] do
-    {:ok, :quota_exceeded}
-  end
-
-  defp decode_reason_code(code, @administrative_action) when code in [@disconnect] do
-    {:ok, :administrative_action}
-  end
-
-  defp decode_reason_code(code, @payload_format_invalid)
-       when code in [@connack, @puback, @pubrec, @disconnect] do
-    {:ok, :payload_format_invalid}
-  end
-
-  defp decode_reason_code(code, @retain_not_supported)
-       when code in [@connack, @disconnect] do
-    {:ok, :retain_not_supported}
-  end
-
-  defp decode_reason_code(code, @qos_not_supported)
-       when code in [@connack, @disconnect] do
-    {:ok, :qos_not_supported}
-  end
-
-  defp decode_reason_code(code, @use_another_server)
-       when code in [@connack, @disconnect] do
-    {:ok, :use_another_server}
-  end
-
-  defp decode_reason_code(code, @server_moved)
-       when code in [@connack, @disconnect] do
-    {:ok, :server_moved}
-  end
-
-  defp decode_reason_code(code, @shared_subscriptions_not_supported)
-       when code in [@suback, @disconnect] do
-    {:ok, :shared_subscriptions_not_supported}
-  end
-
-  defp decode_reason_code(code, @connection_rate_exceeded)
-       when code in [@connack, @disconnect] do
-    {:ok, :connection_rate_exceeded}
-  end
-
-  defp decode_reason_code(code, @maximum_connect_time) when code in [@disconnect] do
-    {:ok, :maximum_connect_time}
-  end
-
-  defp decode_reason_code(code, @subscription_identifiers_not_supported)
-       when code in [@suback, @disconnect] do
-    {:ok, :subscription_identifiers_not_supported}
-  end
-
-  defp decode_reason_code(code, @wildcard_subscriptions_not_supported)
-       when code in [@suback, @disconnect] do
-    {:ok, :wildcard_subscriptions_not_supported}
-  end
-
-  defp decode_reason_code(_, _) do
-    {:error, :malformed_packet}
-  end
-
-  defp decode_qos(integer) do
-    case integer do
-      @at_most_once -> {:ok, :at_most_once}
-      @at_least_once -> {:ok, :at_least_once}
-      @exactly_once -> {:ok, :exactly_once}
-      _ -> {:error, :malformed_packet}
-    end
-  end
-
-  defp decode_properties(_, <<>>), do: {:ok, nil}
-
-  defp decode_properties(code, data) do
-    decode_properties(code, data, [])
-  end
-
-  defp decode_properties(code, <<@payload_format_indicator, rest::bytes>>, list)
-       when code in [@publish, :will] do
-    <<byte, rest::bytes>> = rest
-    decode_properties(code, rest, [{:payload_format_indicator, byte} | list])
-  end
-
-  defp decode_properties(code, <<@message_expiry_interval, rest::bytes>>, list)
-       when code in [@publish, :will] do
-    <<four_byte::32, rest::bytes>> = rest
-    decode_properties(code, rest, [{:message_expiry_interval, four_byte} | list])
-  end
-
-  defp decode_properties(code, <<@content_type, rest::bytes>>, list)
-       when code in [@publish, :will] do
-    <<length::16, string::bytes-size(length), rest::bytes>> = rest
-    decode_properties(code, rest, [{:content_type, string} | list])
-  end
-
-  defp decode_properties(code, <<@response_topic, rest::bytes>>, list)
-       when code in [@publish, :will] do
-    <<length::16, string::bytes-size(length), rest::bytes>> = rest
-    decode_properties(code, rest, [{:response_topic, string} | list])
-  end
-
-  defp decode_properties(code, <<@correlation_data, rest::bytes>>, list)
-       when code in [@publish, :will] do
-    <<length::16, string::bytes-size(length), rest::bytes>> = rest
-    decode_properties(code, rest, [{:correlation_data, string} | list])
-  end
-
-  defp decode_properties(code, <<@subscription_identifier, rest::bytes>>, list)
-       when code in [@publish, @subscribe] do
-    {:ok, vbi, size} = decode_vbi(rest)
-    <<_::size(size), rest::bytes>> = rest
-    decode_properties(code, rest, [{:subscription_identifier, vbi} | list])
-  end
-
-  defp decode_properties(code, <<@session_expiry_interval, rest::bytes>>, list)
-       when code in [@connect, @connack, @disconnect] do
-    <<four_byte::32, rest::bytes>> = rest
-    decode_properties(code, rest, [{:session_expiry_interval, four_byte} | list])
-  end
-
-  defp decode_properties(code, <<@assigned_client_identifier, rest::bytes>>, list)
-       when code in [@connack] do
-    <<length::16, string::bytes-size(length), rest::bytes>> = rest
-    decode_properties(code, rest, [{:assigned_client_identifier, string} | list])
-  end
-
-  defp decode_properties(code, <<@server_keep_alive, rest::bytes>>, list)
-       when code in [@connack] do
-    <<two_byte::16, rest::bytes>> = rest
-    decode_properties(code, rest, [{:server_keep_alive, two_byte} | list])
-  end
-
-  defp decode_properties(code, <<@authentication_method, rest::bytes>>, list)
-       when code in [@connect, @connack, @auth] do
-    <<length::16, string::bytes-size(length), rest::bytes>> = rest
-    decode_properties(code, rest, [{:authentication_method, string} | list])
-  end
-
-  defp decode_properties(code, <<@authentication_data, rest::bytes>>, list)
-       when code in [@connect, @connack, @auth] do
-    <<length::16, string::bytes-size(length), rest::bytes>> = rest
-    decode_properties(code, rest, [{:authentication_data, string} | list])
-  end
-
-  defp decode_properties(code, <<@request_problem_information, rest::bytes>>, list)
-       when code in [@connect] do
-    <<byte, rest::bytes>> = rest
-    decode_properties(code, rest, [{:request_problem_information, byte} | list])
-  end
-
-  defp decode_properties(code, <<@will_delay_interval, rest::bytes>>, list)
-       when code in [:will] do
-    <<four_byte::32, rest::bytes>> = rest
-    decode_properties(code, rest, [{:will_delay_interval, four_byte} | list])
-  end
-
-  defp decode_properties(code, <<@request_response_information, rest::bytes>>, list)
-       when code in [@connect] do
-    <<byte, rest::bytes>> = rest
-    decode_properties(code, rest, [{:request_response_information, byte} | list])
-  end
-
-  defp decode_properties(code, <<@response_information, rest::bytes>>, list)
-       when code in [@connack] do
-    <<length::16, string::bytes-size(length), rest::bytes>> = rest
-    decode_properties(code, rest, [{:response_information, string} | list])
-  end
-
-  defp decode_properties(code, <<@server_reference, rest::bytes>>, list)
-       when code in [@connack, @disconnect] do
-    <<length::16, string::bytes-size(length), rest::bytes>> = rest
-    decode_properties(code, rest, [{:server_reference, string} | list])
-  end
-
-  defp decode_properties(code, <<@reason_string, rest::bytes>>, list)
-       when code not in [@connect, @pingreq, @pingresp, @unsubscribe, :will] do
-    <<length::16, string::bytes-size(length), rest::bytes>> = rest
-    decode_properties(code, rest, [{:reason_string, string} | list])
-  end
-
-  defp decode_properties(code, <<@receive_maximum, rest::bytes>>, list)
-       when code in [@connect, @connack] do
-    <<two_byte::16, rest::bytes>> = rest
-    decode_properties(code, rest, [{:receive_maximum, two_byte} | list])
-  end
-
-  defp decode_properties(code, <<@topic_alias_maximum, rest::bytes>>, list)
-       when code in [@connect, @connack] do
-    <<two_byte::16, rest::bytes>> = rest
-    decode_properties(code, rest, [{:topic_alias_maximum, two_byte} | list])
-  end
-
-  defp decode_properties(code, <<@topic_alias, rest::bytes>>, list)
-       when code in [@publish] do
-    <<two_byte::16, rest::bytes>> = rest
-    decode_properties(code, rest, [{:topic_alias, two_byte} | list])
-  end
-
-  defp decode_properties(code, <<@maximum_qos, rest::bytes>>, list)
-       when code in [@connack] do
-    <<byte, rest::bytes>> = rest
-    decode_properties(code, rest, [{:maximum_qos, byte} | list])
-  end
-
-  defp decode_properties(code, <<@retain_available, rest::bytes>>, list)
-       when code in [@connack] do
-    <<byte, rest::bytes>> = rest
-    decode_properties(code, rest, [{:retain_available, byte} | list])
-  end
-
-  defp decode_properties(code, <<@user_property, rest::bytes>>, list) do
-    <<
-      key_length::16,
-      key::size(key_length),
-      value_length::16,
-      value::size(value_length),
-      rest::bytes
-    >> = rest
-
-    decode_properties(code, rest, [{:user_property, {key, value}} | list])
-  end
-
-  defp decode_properties(code, <<@maximum_packet_size, rest::bytes>>, list)
-       when code in [@connect, @connack] do
-    <<four_byte::32, rest::bytes>> = rest
-    decode_properties(code, rest, [{:maximum_packet_size, four_byte} | list])
-  end
-
-  defp decode_properties(code, <<@wildcard_subscription_available, rest::bytes>>, list)
-       when code in [@connack] do
-    <<byte, rest::bytes>> = rest
-    decode_properties(code, rest, [{:wildcard_subscription_available, byte} | list])
-  end
-
-  defp decode_properties(code, <<@subscription_identifier_available, rest::bytes>>, list)
-       when code in [@connack] do
-    <<byte, rest::bytes>> = rest
-    decode_properties(code, rest, [{:subscription_identifier_available, byte} | list])
-  end
-
-  defp decode_properties(code, <<@shared_subscription_available, rest::bytes>>, list)
-       when code in [@connack] do
-    <<byte, rest::bytes>> = rest
-    decode_properties(code, rest, [{:shared_subscription_available, byte} | list])
-  end
-
-  defp decode_properties(_, <<>>, list), do: {:ok, list}
-
-  defp decode_properties(_, _, _), do: {:error, :malformed_packet}
 end
