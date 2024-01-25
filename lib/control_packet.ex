@@ -119,35 +119,38 @@ defmodule ControlPacket do
         {:ok, list, total_size}
 
       {:error, error} ->
-        {:error, error}
+        {:error, error, list}
     end
   end
 
   def decode(<<@connect::4, 0::4, rest::bytes>>) do
     with {:ok, packet_vbi, packet_vbi_size} <- decode_vbi(rest),
-         <<_::bytes-size(packet_vbi_size), rest::bytes-size(packet_vbi), _::bytes>> <- rest,
-         <<4::16, "MQTT", 5, username_flag::1, password_flag::1, will_retain::1, will_qos::2,
-           will_flag::1, clean_start::1, 0::1, keep_alive::16, rest::bytes>> <- rest,
-         {:ok, vbi, size} <- decode_vbi(rest),
-         <<_::bytes-size(size), properties::bytes-size(vbi), rest::bytes>> <- rest,
-         <<size::16, clientid::bytes-size(size), rest::bytes>> <- rest do
-      with {:ok, will_qos} <- decode_qos(will_qos),
-           {:ok, properties} <- decode_properties(@connect, properties),
-           {:ok, will, size} <- decode_will(will_flag == 1, rest),
-           {:ok, username, size} <- decode_string(username_flag == 1, size, rest),
-           {:ok, password, _} <- decode_string(password_flag == 1, size, rest) do
-        {:ok,
-         %ControlPacket.Connect{
-           clientid: clientid,
-           will: will,
-           will_retain: will_retain == 1,
-           clean_start: clean_start == 1,
-           will_qos: will_qos,
-           keep_alive: keep_alive,
-           properties: properties,
-           username: username,
-           password: password
-         }, packet_vbi + packet_vbi_size + 1}
+         <<_::bytes-size(packet_vbi_size), rest::bytes-size(packet_vbi), _::bytes>> <- rest do
+      with <<4::16, "MQTT", 5, username_flag::1, password_flag::1, will_retain::1, will_qos::2,
+             will_flag::1, clean_start::1, 0::1, keep_alive::16, rest::bytes>> <- rest,
+           {:ok, vbi, size} <- decode_vbi(rest),
+           <<_::bytes-size(size), properties::bytes-size(vbi), rest::bytes>> <- rest,
+           <<size::16, clientid::bytes-size(size), rest::bytes>> <- rest do
+        with {:ok, will_qos} <- decode_qos(will_qos),
+             {:ok, properties} <- decode_properties(@connect, properties),
+             {:ok, will, size} <- decode_will(will_flag == 1, rest),
+             {:ok, username, size} <- decode_string(username_flag == 1, size, rest),
+             {:ok, password, _} <- decode_string(password_flag == 1, size, rest) do
+          {:ok,
+           %ControlPacket.Connect{
+             clientid: clientid,
+             will: will,
+             will_retain: will_retain == 1,
+             clean_start: clean_start == 1,
+             will_qos: will_qos,
+             keep_alive: keep_alive,
+             properties: properties,
+             username: username,
+             password: password
+           }, packet_vbi + packet_vbi_size + 1}
+        end
+      else
+        _ -> {:error, :malformed_packet}
       end
     else
       _ -> {:error, :incomplete_packet}
@@ -156,18 +159,21 @@ defmodule ControlPacket do
 
   def decode(<<@connack::4, 0::4, rest::bytes>>) do
     with {:ok, packet_vbi, packet_vbi_size} <- decode_vbi(rest),
-         <<_::bytes-size(packet_vbi_size), rest::bytes-size(packet_vbi), _::bytes>> <- rest,
-         <<0::7, session_present::1, reason_code, rest::bytes>> <- rest,
-         {:ok, vbi, size} <- decode_vbi(rest),
-         <<_::bytes-size(size), properties::bytes-size(vbi)>> <- rest do
-      with {:ok, reason_code} <- decode_reason_code(@connack, reason_code),
-           {:ok, properties} <- decode_properties(@connack, properties) do
-        {:ok,
-         %ControlPacket.Connack{
-           session_present: session_present == 1,
-           reason_code: reason_code,
-           properties: properties
-         }, packet_vbi + packet_vbi_size + 1}
+         <<_::bytes-size(packet_vbi_size), rest::bytes-size(packet_vbi), _::bytes>> <- rest do
+      with <<0::7, session_present::1, reason_code, rest::bytes>> <- rest,
+           {:ok, vbi, size} <- decode_vbi(rest),
+           <<_::bytes-size(size), properties::bytes-size(vbi)>> <- rest do
+        with {:ok, reason_code} <- decode_reason_code(@connack, reason_code),
+             {:ok, properties} <- decode_properties(@connack, properties) do
+          {:ok,
+           %ControlPacket.Connack{
+             session_present: session_present == 1,
+             reason_code: reason_code,
+             properties: properties
+           }, packet_vbi + packet_vbi_size + 1}
+        end
+      else
+        _ -> {:error, :malformed_packet}
       end
     else
       _ -> {:error, :incomplete_packet}
@@ -176,25 +182,28 @@ defmodule ControlPacket do
 
   def decode(<<@publish::4, flags::bits-4, rest::bytes>>) do
     with {:ok, packet_vbi, packet_vbi_size} <- decode_vbi(rest),
-         <<_::bytes-size(packet_vbi_size), rest::bytes-size(packet_vbi), _::bytes>> <- rest,
-         <<dup_flag::1, qos_level::2, retain::1>> <- flags,
-         {:ok, qos_level} <- decode_qos(qos_level),
-         <<length::16, topic_name::bytes-size(length), rest::bytes>> <- rest,
-         {:ok, packet_identifier, size} <- decode_packet_identifier(qos_level, rest),
-         <<_::size(size), rest::bytes>> <- rest,
-         {:ok, vbi, size} <- decode_vbi(rest),
-         <<_::bytes-size(size), properties::bytes-size(vbi), payload::bytes>> <- rest do
-      with {:ok, properties} <- decode_properties(@publish, properties) do
-        {:ok,
-         %ControlPacket.Publish{
-           dup_flag: dup_flag == 1,
-           qos_level: qos_level,
-           retain: retain == 1,
-           topic_name: topic_name,
-           packet_identifier: packet_identifier,
-           properties: properties,
-           payload: payload
-         }, packet_vbi + packet_vbi_size + 1}
+         <<_::bytes-size(packet_vbi_size), rest::bytes-size(packet_vbi), _::bytes>> <- rest do
+      with <<dup_flag::1, qos_level::2, retain::1>> <- flags,
+           {:ok, qos_level} <- decode_qos(qos_level),
+           <<length::16, topic_name::bytes-size(length), rest::bytes>> <- rest,
+           {:ok, packet_identifier, size} <- decode_packet_identifier(qos_level, rest),
+           <<_::size(size), rest::bytes>> <- rest,
+           {:ok, vbi, size} <- decode_vbi(rest),
+           <<_::bytes-size(size), properties::bytes-size(vbi), payload::bytes>> <- rest do
+        with {:ok, properties} <- decode_properties(@publish, properties) do
+          {:ok,
+           %ControlPacket.Publish{
+             dup_flag: dup_flag == 1,
+             qos_level: qos_level,
+             retain: retain == 1,
+             topic_name: topic_name,
+             packet_identifier: packet_identifier,
+             properties: properties,
+             payload: payload
+           }, packet_vbi + packet_vbi_size + 1}
+        end
+      else
+        _ -> {:error, :malformed_packet}
       end
     else
       _ -> {:error, :incomplete_packet}
@@ -221,18 +230,21 @@ defmodule ControlPacket do
 
   def decode(<<@puback::4, 0::4, rest::bytes>>) do
     with {:ok, packet_vbi, packet_vbi_size} <- decode_vbi(rest),
-         <<_::bytes-size(packet_vbi_size), rest::bytes-size(packet_vbi), _::bytes>> <- rest,
-         <<packet_identifier::16, reason_code, rest::bytes>> <- rest,
-         {:ok, vbi, size} <- decode_vbi(rest),
-         <<_::bytes-size(size), properties::bytes-size(vbi)>> <- rest do
-      with {:ok, reason_code} <- decode_reason_code(@puback, reason_code),
-           {:ok, properties} <- decode_properties(@puback, properties) do
-        {:ok,
-         %ControlPacket.Puback{
-           packet_identifier: packet_identifier,
-           reason_code: reason_code,
-           properties: properties
-         }, packet_vbi + packet_vbi_size + 1}
+         <<_::bytes-size(packet_vbi_size), rest::bytes-size(packet_vbi), _::bytes>> <- rest do
+      with <<packet_identifier::16, reason_code, rest::bytes>> <- rest,
+           {:ok, vbi, size} <- decode_vbi(rest),
+           <<_::bytes-size(size), properties::bytes-size(vbi)>> <- rest do
+        with {:ok, reason_code} <- decode_reason_code(@puback, reason_code),
+             {:ok, properties} <- decode_properties(@puback, properties) do
+          {:ok,
+           %ControlPacket.Puback{
+             packet_identifier: packet_identifier,
+             reason_code: reason_code,
+             properties: properties
+           }, packet_vbi + packet_vbi_size + 1}
+        end
+      else
+        _ -> {:error, :malformed_packet}
       end
     else
       _ -> {:error, :incomplete_packet}
@@ -259,18 +271,21 @@ defmodule ControlPacket do
 
   def decode(<<@pubrec::4, 0::4, rest::bytes>>) do
     with {:ok, packet_vbi, packet_vbi_size} <- decode_vbi(rest),
-         <<_::bytes-size(packet_vbi_size), rest::bytes-size(packet_vbi), _::bytes>> <- rest,
-         <<packet_identifier::16, reason_code, rest::bytes>> <- rest,
-         {:ok, vbi, size} <- decode_vbi(rest),
-         <<_::bytes-size(size), properties::bytes-size(vbi)>> <- rest do
-      with {:ok, reason_code} <- decode_reason_code(@pubrec, reason_code),
-           {:ok, properties} <- decode_properties(@pubrec, properties) do
-        {:ok,
-         %ControlPacket.Pubrec{
-           packet_identifier: packet_identifier,
-           reason_code: reason_code,
-           properties: properties
-         }, packet_vbi + packet_vbi_size + 1}
+         <<_::bytes-size(packet_vbi_size), rest::bytes-size(packet_vbi), _::bytes>> <- rest do
+      with <<packet_identifier::16, reason_code, rest::bytes>> <- rest,
+           {:ok, vbi, size} <- decode_vbi(rest),
+           <<_::bytes-size(size), properties::bytes-size(vbi)>> <- rest do
+        with {:ok, reason_code} <- decode_reason_code(@pubrec, reason_code),
+             {:ok, properties} <- decode_properties(@pubrec, properties) do
+          {:ok,
+           %ControlPacket.Pubrec{
+             packet_identifier: packet_identifier,
+             reason_code: reason_code,
+             properties: properties
+           }, packet_vbi + packet_vbi_size + 1}
+        end
+      else
+        _ -> {:error, :malformed_packet}
       end
     else
       _ -> {:error, :incomplete_packet}
@@ -297,18 +312,21 @@ defmodule ControlPacket do
 
   def decode(<<@pubrel::4, 2::4, rest::bytes>>) do
     with {:ok, packet_vbi, packet_vbi_size} <- decode_vbi(rest),
-         <<_::bytes-size(packet_vbi_size), rest::bytes-size(packet_vbi), _::bytes>> <- rest,
-         <<packet_identifier::16, reason_code, rest::bytes>> <- rest,
-         {:ok, vbi, size} <- decode_vbi(rest),
-         <<_::bytes-size(size), properties::bytes-size(vbi)>> <- rest do
-      with {:ok, reason_code} <- decode_reason_code(@pubrel, reason_code),
-           {:ok, properties} <- decode_properties(@pubrel, properties) do
-        {:ok,
-         %ControlPacket.Pubrel{
-           packet_identifier: packet_identifier,
-           reason_code: reason_code,
-           properties: properties
-         }, packet_vbi + packet_vbi_size + 1}
+         <<_::bytes-size(packet_vbi_size), rest::bytes-size(packet_vbi), _::bytes>> <- rest do
+      with <<packet_identifier::16, reason_code, rest::bytes>> <- rest,
+           {:ok, vbi, size} <- decode_vbi(rest),
+           <<_::bytes-size(size), properties::bytes-size(vbi)>> <- rest do
+        with {:ok, reason_code} <- decode_reason_code(@pubrel, reason_code),
+             {:ok, properties} <- decode_properties(@pubrel, properties) do
+          {:ok,
+           %ControlPacket.Pubrel{
+             packet_identifier: packet_identifier,
+             reason_code: reason_code,
+             properties: properties
+           }, packet_vbi + packet_vbi_size + 1}
+        end
+      else
+        _ -> {:error, :malformed_packet}
       end
     else
       _ -> {:error, :incomplete_packet}
@@ -335,18 +353,21 @@ defmodule ControlPacket do
 
   def decode(<<@pubcomp::4, 0::4, rest::bytes>>) do
     with {:ok, packet_vbi, packet_vbi_size} <- decode_vbi(rest),
-         <<_::bytes-size(packet_vbi_size), rest::bytes-size(packet_vbi), _::bytes>> <- rest,
-         <<packet_identifier::16, reason_code, rest::bytes>> <- rest,
-         {:ok, vbi, size} <- decode_vbi(rest),
-         <<_::bytes-size(size), properties::bytes-size(vbi)>> <- rest do
-      with {:ok, reason_code} <- decode_reason_code(@pubcomp, reason_code),
-           {:ok, properties} <- decode_properties(@pubcomp, properties) do
-        {:ok,
-         %ControlPacket.Pubcomp{
-           packet_identifier: packet_identifier,
-           reason_code: reason_code,
-           properties: properties
-         }, packet_vbi + packet_vbi_size + 1}
+         <<_::bytes-size(packet_vbi_size), rest::bytes-size(packet_vbi), _::bytes>> <- rest do
+      with <<packet_identifier::16, reason_code, rest::bytes>> <- rest,
+           {:ok, vbi, size} <- decode_vbi(rest),
+           <<_::bytes-size(size), properties::bytes-size(vbi)>> <- rest do
+        with {:ok, reason_code} <- decode_reason_code(@pubcomp, reason_code),
+             {:ok, properties} <- decode_properties(@pubcomp, properties) do
+          {:ok,
+           %ControlPacket.Pubcomp{
+             packet_identifier: packet_identifier,
+             reason_code: reason_code,
+             properties: properties
+           }, packet_vbi + packet_vbi_size + 1}
+        end
+      else
+        _ -> {:error, :malformed_packet}
       end
     else
       _ -> {:error, :incomplete_packet}
@@ -355,18 +376,21 @@ defmodule ControlPacket do
 
   def decode(<<@subscribe::4, 2::4, rest::bytes>>) do
     with {:ok, packet_vbi, packet_vbi_size} <- decode_vbi(rest),
-         <<_::bytes-size(packet_vbi_size), rest::bytes-size(packet_vbi), _::bytes>> <- rest,
-         <<packet_identifier::16, rest::bytes>> <- rest,
-         {:ok, vbi, size} <- decode_vbi(rest),
-         <<_::bytes-size(size), properties::bytes-size(vbi), rest::bytes>> <- rest do
-      with {:ok, properties} <- decode_properties(@subscribe, properties),
-           {:ok, topic_filters} <- decode_topic_filters(rest) do
-        {:ok,
-         %ControlPacket.Subscribe{
-           packet_identifier: packet_identifier,
-           properties: properties,
-           topic_filters: topic_filters
-         }, packet_vbi + packet_vbi_size + 1}
+         <<_::bytes-size(packet_vbi_size), rest::bytes-size(packet_vbi), _::bytes>> <- rest do
+      with <<packet_identifier::16, rest::bytes>> <- rest,
+           {:ok, vbi, size} <- decode_vbi(rest),
+           <<_::bytes-size(size), properties::bytes-size(vbi), rest::bytes>> <- rest do
+        with {:ok, properties} <- decode_properties(@subscribe, properties),
+             {:ok, topic_filters} <- decode_topic_filters(rest) do
+          {:ok,
+           %ControlPacket.Subscribe{
+             packet_identifier: packet_identifier,
+             properties: properties,
+             topic_filters: topic_filters
+           }, packet_vbi + packet_vbi_size + 1}
+        end
+      else
+        _ -> {:error, :malformed_packet}
       end
     else
       _ -> {:error, :incomplete_packet}
@@ -395,18 +419,21 @@ defmodule ControlPacket do
 
   def decode(<<@unsubscribe::4, 2::4, rest::bytes>>) do
     with {:ok, packet_vbi, packet_vbi_size} <- decode_vbi(rest),
-         <<_::bytes-size(packet_vbi_size), rest::bytes-size(packet_vbi), _::bytes>> <- rest,
-         <<packet_identifier::16, rest::bytes>> <- rest,
-         {:ok, vbi, size} <- decode_vbi(rest),
-         <<_::bytes-size(size), properties::bytes-size(vbi), rest::bytes>> <- rest do
-      with {:ok, properties} <- decode_properties(@unsubscribe, properties),
-           {:ok, topic_filters} <- decode_topic_filters(rest) do
-        {:ok,
-         %ControlPacket.Unsubscribe{
-           packet_identifier: packet_identifier,
-           properties: properties,
-           topic_filters: topic_filters
-         }, packet_vbi + packet_vbi_size + 1}
+         <<_::bytes-size(packet_vbi_size), rest::bytes-size(packet_vbi), _::bytes>> <- rest do
+      with <<packet_identifier::16, rest::bytes>> <- rest,
+           {:ok, vbi, size} <- decode_vbi(rest),
+           <<_::bytes-size(size), properties::bytes-size(vbi), rest::bytes>> <- rest do
+        with {:ok, properties} <- decode_properties(@unsubscribe, properties),
+             {:ok, topic_filters} <- decode_topic_filters(rest) do
+          {:ok,
+           %ControlPacket.Unsubscribe{
+             packet_identifier: packet_identifier,
+             properties: properties,
+             topic_filters: topic_filters
+           }, packet_vbi + packet_vbi_size + 1}
+        end
+      else
+        _ -> {:error, :malformed_packet}
       end
     else
       _ -> {:error, :incomplete_packet}
@@ -415,18 +442,21 @@ defmodule ControlPacket do
 
   def decode(<<@unsuback::4, 0::4, rest::bytes>>) do
     with {:ok, packet_vbi, packet_vbi_size} <- decode_vbi(rest),
-         <<_::bytes-size(packet_vbi_size), rest::bytes-size(packet_vbi), _::bytes>> <- rest,
-         <<packet_identifier::16, rest::bytes>> <- rest,
-         {:ok, vbi, size} <- decode_vbi(rest),
-         <<_::bytes-size(size), properties::bytes-size(vbi), rest::bytes>> <- rest do
-      with {:ok, properties} <- decode_properties(@unsuback, properties),
-           {:ok, reason_codes} <- decode_reason_codes(@unsuback, rest) do
-        {:ok,
-         %ControlPacket.Unsuback{
-           packet_identifier: packet_identifier,
-           properties: properties,
-           reason_codes: reason_codes
-         }, packet_vbi + packet_vbi_size + 1}
+         <<_::bytes-size(packet_vbi_size), rest::bytes-size(packet_vbi), _::bytes>> <- rest do
+      with <<packet_identifier::16, rest::bytes>> <- rest,
+           {:ok, vbi, size} <- decode_vbi(rest),
+           <<_::bytes-size(size), properties::bytes-size(vbi), rest::bytes>> <- rest do
+        with {:ok, properties} <- decode_properties(@unsuback, properties),
+             {:ok, reason_codes} <- decode_reason_codes(@unsuback, rest) do
+          {:ok,
+           %ControlPacket.Unsuback{
+             packet_identifier: packet_identifier,
+             properties: properties,
+             reason_codes: reason_codes
+           }, packet_vbi + packet_vbi_size + 1}
+        end
+      else
+        _ -> {:error, :malformed_packet}
       end
     else
       _ -> {:error, :incomplete_packet}
@@ -442,28 +472,31 @@ defmodule ControlPacket do
   end
 
   def decode(<<@disconnect::4, 0::4, 0, _::bytes>>) do
-    {:ok, %ControlPacket.Disconnect{reason_code: :success}, 2}
+    {:ok, %ControlPacket.Disconnect{reason_code: :normal_disconnection}, 2}
   end
 
   def decode(<<@disconnect::4, 0::4, 1, reason_code, _::bytes>>) do
     with {:ok, reason_code} <- decode_reason_code(@disconnect, reason_code) do
-      {:ok, %ControlPacket.Disconnect{reason_code: reason_code}, 2}
+      {:ok, %ControlPacket.Disconnect{reason_code: reason_code}, 3}
     end
   end
 
   def decode(<<@disconnect::4, 0::4, rest::bytes>>) do
     with {:ok, packet_vbi, packet_vbi_size} <- decode_vbi(rest),
-         <<_::bytes-size(packet_vbi_size), rest::bytes-size(packet_vbi), _::bytes>> <- rest,
-         <<reason_code, rest::bytes>> <- rest,
-         {:ok, vbi, size} <- decode_vbi(rest),
-         <<_::bytes-size(size), properties::bytes-size(vbi)>> <- rest do
-      with {:ok, reason_code} <- decode_reason_code(@disconnect, reason_code),
-           {:ok, properties} <- decode_properties(@disconnect, properties) do
-        {:ok,
-         %ControlPacket.Disconnect{
-           reason_code: reason_code,
-           properties: properties
-         }, packet_vbi + packet_vbi_size + 1}
+         <<_::bytes-size(packet_vbi_size), rest::bytes-size(packet_vbi), _::bytes>> <- rest do
+      with <<reason_code, rest::bytes>> <- rest,
+           {:ok, vbi, size} <- decode_vbi(rest),
+           <<_::bytes-size(size), properties::bytes-size(vbi)>> <- rest do
+        with {:ok, reason_code} <- decode_reason_code(@disconnect, reason_code),
+             {:ok, properties} <- decode_properties(@disconnect, properties) do
+          {:ok,
+           %ControlPacket.Disconnect{
+             reason_code: reason_code,
+             properties: properties
+           }, packet_vbi + packet_vbi_size + 1}
+        end
+      else
+        _ -> {:error, :malformed_packet}
       end
     else
       _ -> {:error, :incomplete_packet}
@@ -476,17 +509,20 @@ defmodule ControlPacket do
 
   def decode(<<@auth::4, 0::4, rest::bytes>>) do
     with {:ok, packet_vbi, packet_vbi_size} <- decode_vbi(rest),
-         <<_::bytes-size(packet_vbi_size), rest::bytes-size(packet_vbi), _::bytes>> <- rest,
-         <<reason_code, rest::bytes>> <- rest,
-         {:ok, vbi, size} <- decode_vbi(rest),
-         <<_::bytes-size(size), properties::bytes-size(vbi)>> <- rest do
-      with {:ok, reason_code} <- decode_reason_code(@auth, reason_code),
-           {:ok, properties} <- decode_properties(@auth, properties) do
-        {:ok,
-         %ControlPacket.Auth{
-           reason_code: reason_code,
-           properties: properties
-         }, packet_vbi + packet_vbi_size + 1}
+         <<_::bytes-size(packet_vbi_size), rest::bytes-size(packet_vbi), _::bytes>> <- rest do
+      with <<reason_code, rest::bytes>> <- rest,
+           {:ok, vbi, size} <- decode_vbi(rest),
+           <<_::bytes-size(size), properties::bytes-size(vbi)>> <- rest do
+        with {:ok, reason_code} <- decode_reason_code(@auth, reason_code),
+             {:ok, properties} <- decode_properties(@auth, properties) do
+          {:ok,
+           %ControlPacket.Auth{
+             reason_code: reason_code,
+             properties: properties
+           }, packet_vbi + packet_vbi_size + 1}
+        end
+      else
+        _ -> {:error, :malformed_packet}
       end
     else
       _ -> {:error, :incomplete_packet}
@@ -548,32 +584,58 @@ defmodule ControlPacket do
       properties: properties
     } = connect
 
-    with data <- <<4::16, "MQTT", 5>>,
-         {:ok, will_qos} <- encode_qos(will_qos),
-         {:ok, properties} <- encode_properties(@connect, properties),
-         {:ok, vbi} <- encode_vbi(byte_size(properties)),
-         data <-
-           data <>
-             <<
-               encode_boolean(username)::1,
-               encode_boolean(password)::1,
-               encode_boolean(will_retain)::1,
-               will_qos::2,
-               encode_boolean(will)::1,
-               encode_boolean(clean_start)::1,
-               0::1,
-               keep_alive::16,
-               vbi::bytes,
-               properties::bytes,
-               byte_size(clientid)::16,
-               clientid::bytes
-             >>,
-         {:ok, data} <- encode_will(will, data),
-         {:ok, data} <- encode_string(username, data),
-         {:ok, data} <- encode_string(password, data),
-         {:ok, vbi} <- encode_vbi(byte_size(data)),
-         data <- <<@connect::4, 0::4, vbi::bytes, data::bytes>> do
-      {:ok, data}
+    with {:ok, will_qos} <- encode_qos(will_qos),
+         {:ok, properties, properties_size} <- encode_properties(@connect, properties),
+         {:ok, properties_vbi, properties_vbi_size} <- encode_vbi(properties_size),
+         {:ok, will, will_size} <- encode_will(will),
+         {:ok, username, username_size} <- encode_string(username),
+         {:ok, password, password_size} <- encode_string(password) do
+      variable_header =
+        <<
+          4::16,
+          "MQTT",
+          5,
+          encode_boolean(username)::1,
+          encode_boolean(password)::1,
+          encode_boolean(will_retain)::1,
+          will_qos::2,
+          encode_boolean(will)::1,
+          encode_boolean(clean_start)::1,
+          0::1,
+          keep_alive::16
+        >>
+
+      variable_header_size = byte_size(variable_header)
+      clientid_size = byte_size(clientid)
+
+      size =
+        Enum.sum([
+          variable_header_size,
+          properties_vbi_size,
+          properties_size,
+          2,
+          clientid_size,
+          will_size,
+          username_size,
+          password_size
+        ])
+
+      with {:ok, vbi, vbi_size} <- encode_vbi(size) do
+        data = [
+          <<@connect::4, 0::4>>,
+          vbi,
+          variable_header,
+          properties_vbi,
+          properties,
+          <<clientid_size::16>>,
+          clientid,
+          will,
+          username,
+          password
+        ]
+
+        {:ok, data, vbi_size + size + 1}
+      end
     end
   end
 
@@ -585,17 +647,22 @@ defmodule ControlPacket do
     } = connack
 
     with {:ok, reason_code} <- encode_reason_code(@connack, reason_code),
-         {:ok, properties} <- encode_properties(@connack, properties),
-         {:ok, vbi} <- encode_vbi(byte_size(properties)),
-         data <- <<
-           0::7,
-           encode_boolean(session_present)::1,
-           reason_code,
-           vbi::bytes,
-           properties::bytes
-         >>,
-         {:ok, vbi} <- encode_vbi(byte_size(data)) do
-      {:ok, <<@connack::4, 0::4, vbi::bytes, data::bytes>>}
+         {:ok, properties, properties_size} <- encode_properties(@connack, properties),
+         {:ok, properties_vbi, properties_vbi_size} <- encode_vbi(properties_size) do
+      size = Enum.sum([1, 1, properties_vbi_size, properties_size])
+
+      with {:ok, vbi, vbi_size} <- encode_vbi(size) do
+        data = [
+          <<@connack::4, 0::4>>,
+          vbi,
+          <<0::7, encode_boolean(session_present)::1>>,
+          reason_code,
+          properties_vbi,
+          properties
+        ]
+
+        {:ok, data, vbi_size + size + 1}
+      end
     end
   end
 
@@ -610,23 +677,40 @@ defmodule ControlPacket do
       payload: payload
     } = publish
 
-    with data <- <<byte_size(topic_name)::16, topic_name::bytes>>,
-         {:ok, data} <- encode_packet_identifier(qos_level, packet_identifier, data),
-         {:ok, properties} <- encode_properties(@publish, properties),
-         {:ok, vbi} <- encode_vbi(byte_size(properties)),
-         data <-
-           data <> <<vbi::bytes, properties::bytes, byte_size(payload)::16, payload::bytes>>,
-         {:ok, vbi} <- encode_vbi(byte_size(data)),
+    with {:ok, packet_identifier, packet_identifier_size} <-
+           encode_packet_identifier(qos_level, packet_identifier),
+         {:ok, properties, properties_size} <- encode_properties(@publish, properties),
+         {:ok, properties_vbi, properties_vbi_size} <- encode_vbi(properties_size),
          {:ok, qos_level} <- encode_qos(qos_level) do
-      {:ok,
-       <<
-         @publish::4,
-         encode_boolean(dup_flag)::1,
-         qos_level::2,
-         encode_boolean(retain)::1,
-         vbi::bytes,
-         data::bytes
-       >>}
+      topic_name_size = byte_size(topic_name)
+      payload_size = byte_size(payload)
+
+      size =
+        Enum.sum([
+          2,
+          topic_name_size,
+          packet_identifier_size,
+          properties_vbi_size,
+          properties_size,
+          2,
+          payload_size
+        ])
+
+      with {:ok, vbi, vbi_size} <- encode_vbi(size) do
+        data = [
+          <<@publish::4, encode_boolean(dup_flag)::1, qos_level::2, encode_boolean(retain)::1>>,
+          vbi,
+          <<byte_size(topic_name)::16>>,
+          topic_name,
+          packet_identifier,
+          properties_vbi,
+          properties,
+          <<byte_size(payload)::16>>,
+          payload
+        ]
+
+        {:ok, data, vbi_size + size + 1}
+      end
     end
   end
 
@@ -635,7 +719,7 @@ defmodule ControlPacket do
       packet_identifier: packet_identifier
     } = puback
 
-    {:ok, <<@puback::4, 0::4, 2, packet_identifier::16>>}
+    {:ok, <<@puback::4, 0::4, 2, packet_identifier::16>>, 4}
   end
 
   def encode(%ControlPacket.Puback{properties: []} = puback) do
@@ -645,7 +729,7 @@ defmodule ControlPacket do
     } = puback
 
     with {:ok, reason_code} <- encode_reason_code(@puback, reason_code) do
-      {:ok, <<@puback::4, 0::4, 3, packet_identifier::16, reason_code>>}
+      {:ok, <<@puback::4, 0::4, 3, packet_identifier::16, reason_code>>, 5}
     end
   end
 
@@ -656,12 +740,23 @@ defmodule ControlPacket do
       properties: properties
     } = puback
 
-    with {:ok, properties} <- encode_properties(@puback, properties),
-         {:ok, vbi} <- encode_vbi(byte_size(properties)),
-         {:ok, reason_code} <- encode_reason_code(@puback, reason_code),
-         data <- <<packet_identifier::16, reason_code, vbi::bytes, properties::bytes>>,
-         {:ok, vbi} <- encode_vbi(byte_size(data)) do
-      {:ok, <<@puback::4, 0::4, vbi::bytes, data::bytes>>}
+    with {:ok, properties, properties_size} <- encode_properties(@puback, properties),
+         {:ok, properties_vbi, properties_vbi_size} <- encode_vbi(properties_size),
+         {:ok, reason_code} <- encode_reason_code(@puback, reason_code) do
+      size = Enum.sum([properties_size, properties_vbi_size, 1])
+
+      with {:ok, vbi, vbi_size} <- encode_vbi(size) do
+        data = [
+          <<@puback::4, 0::4>>,
+          vbi,
+          <<packet_identifier::16>>,
+          reason_code,
+          properties_vbi,
+          properties
+        ]
+
+        {:ok, data, vbi_size + size + 1}
+      end
     end
   end
 
@@ -670,7 +765,7 @@ defmodule ControlPacket do
       packet_identifier: packet_identifier
     } = pubrec
 
-    {:ok, <<@pubrec::4, 0::4, 2, packet_identifier::16>>}
+    {:ok, <<@pubrec::4, 0::4, 2, packet_identifier::16>>, 4}
   end
 
   def encode(%ControlPacket.Pubrec{properties: []} = pubrec) do
@@ -680,7 +775,7 @@ defmodule ControlPacket do
     } = pubrec
 
     with {:ok, reason_code} <- encode_reason_code(@pubrec, reason_code) do
-      {:ok, <<@pubrec::4, 0::4, 3, packet_identifier::16, reason_code>>}
+      {:ok, <<@pubrec::4, 0::4, 3, packet_identifier::16, reason_code>>, 5}
     end
   end
 
@@ -691,12 +786,23 @@ defmodule ControlPacket do
       properties: properties
     } = pubrec
 
-    with {:ok, properties} <- encode_properties(@pubrec, properties),
-         {:ok, vbi} <- encode_vbi(byte_size(properties)),
-         {:ok, reason_code} <- encode_reason_code(@pubrec, reason_code),
-         data <- <<packet_identifier::16, reason_code, vbi::bytes, properties::bytes>>,
-         {:ok, vbi} <- encode_vbi(byte_size(data)) do
-      {:ok, <<@pubrec::4, 0::4, vbi::bytes, data::bytes>>}
+    with {:ok, properties, properties_size} <- encode_properties(@pubrec, properties),
+         {:ok, properties_vbi, properties_vbi_size} <- encode_vbi(properties_size),
+         {:ok, reason_code} <- encode_reason_code(@pubrec, reason_code) do
+      size = Enum.sum([properties_size, properties_vbi_size, 1])
+
+      with {:ok, vbi, vbi_size} <- encode_vbi(size) do
+        data = [
+          <<@pubrec::4, 0::4>>,
+          vbi,
+          <<packet_identifier::16>>,
+          reason_code,
+          properties_vbi,
+          properties
+        ]
+
+        {:ok, data, vbi_size + size + 1}
+      end
     end
   end
 
@@ -705,7 +811,7 @@ defmodule ControlPacket do
       packet_identifier: packet_identifier
     } = pubrel
 
-    {:ok, <<@pubrel::4, 2::4, 2, packet_identifier::16>>}
+    {:ok, <<@pubrel::4, 2::4, 2, packet_identifier::16>>, 4}
   end
 
   def encode(%ControlPacket.Pubrel{properties: []} = pubrel) do
@@ -715,7 +821,7 @@ defmodule ControlPacket do
     } = pubrel
 
     with {:ok, reason_code} <- encode_reason_code(@pubrel, reason_code) do
-      {:ok, <<@pubrel::4, 2::4, 3, packet_identifier::16, reason_code>>}
+      {:ok, <<@pubrel::4, 2::4, 3, packet_identifier::16, reason_code>>, 5}
     end
   end
 
@@ -726,12 +832,23 @@ defmodule ControlPacket do
       properties: properties
     } = pubrel
 
-    with {:ok, properties} <- encode_properties(@pubrel, properties),
-         {:ok, vbi} <- encode_vbi(byte_size(properties)),
-         {:ok, reason_code} <- encode_reason_code(@pubrel, reason_code),
-         data <- <<packet_identifier::16, reason_code, vbi::bytes, properties::bytes>>,
-         {:ok, vbi} <- encode_vbi(byte_size(data)) do
-      {:ok, <<@pubrel::4, 2::4, vbi::bytes, data::bytes>>}
+    with {:ok, properties, properties_size} <- encode_properties(@pubrel, properties),
+         {:ok, properties_vbi, properties_vbi_size} <- encode_vbi(properties_size),
+         {:ok, reason_code} <- encode_reason_code(@pubrel, reason_code) do
+      size = Enum.sum([properties_size, properties_vbi_size, 1])
+
+      with {:ok, vbi, vbi_size} <- encode_vbi(size) do
+        data = [
+          <<@pubrel::4, 2::4>>,
+          vbi,
+          <<packet_identifier::16>>,
+          reason_code,
+          properties_vbi,
+          properties
+        ]
+
+        {:ok, data, vbi_size + size + 1}
+      end
     end
   end
 
@@ -740,7 +857,7 @@ defmodule ControlPacket do
       packet_identifier: packet_identifier
     } = pubcomp
 
-    {:ok, <<@pubcomp::4, 0::4, 2, packet_identifier::16>>}
+    {:ok, <<@pubcomp::4, 0::4, 2, packet_identifier::16>>, 4}
   end
 
   def encode(%ControlPacket.Pubcomp{properties: []} = pubcomp) do
@@ -750,7 +867,7 @@ defmodule ControlPacket do
     } = pubcomp
 
     with {:ok, reason_code} <- encode_reason_code(@pubcomp, reason_code) do
-      {:ok, <<@pubcomp::4, 0::4, 3, packet_identifier::16, reason_code>>}
+      {:ok, <<@pubcomp::4, 0::4, 3, packet_identifier::16, reason_code>>, 5}
     end
   end
 
@@ -761,12 +878,23 @@ defmodule ControlPacket do
       properties: properties
     } = pubcomp
 
-    with {:ok, properties} <- encode_properties(@pubcomp, properties),
-         {:ok, vbi} <- encode_vbi(byte_size(properties)),
-         {:ok, reason_code} <- encode_reason_code(@pubcomp, reason_code),
-         data <- <<packet_identifier::16, reason_code, vbi::bytes, properties::bytes>>,
-         {:ok, vbi} <- encode_vbi(byte_size(data)) do
-      {:ok, <<@pubcomp::4, 0::4, vbi::bytes, data::bytes>>}
+    with {:ok, properties, properties_size} <- encode_properties(@pubcomp, properties),
+         {:ok, properties_vbi, properties_vbi_size} <- encode_vbi(properties_size),
+         {:ok, reason_code} <- encode_reason_code(@pubcomp, reason_code) do
+      size = Enum.sum([properties_size, properties_vbi_size, 1])
+
+      with {:ok, vbi, vbi_size} <- encode_vbi(size) do
+        data = [
+          <<@pubcomp::4, 0::4>>,
+          vbi,
+          <<packet_identifier::16>>,
+          reason_code,
+          properties_vbi,
+          properties
+        ]
+
+        {:ok, data, vbi_size + size + 1}
+      end
     end
   end
 
@@ -777,13 +905,23 @@ defmodule ControlPacket do
       topic_filters: topic_filters
     } = subscribe
 
-    with {:ok, properties} <- encode_properties(@subscribe, properties),
-         {:ok, vbi} <- encode_vbi(byte_size(properties)),
-         {:ok, topic_filters} <- encode_topic_filters(topic_filters),
-         data <-
-           <<packet_identifier::16, vbi::bytes, properties::bytes, topic_filters::bytes>>,
-         {:ok, vbi} <- encode_vbi(byte_size(data)) do
-      {:ok, <<@subscribe::4, 2::4, vbi::bytes, data::bytes>>}
+    with {:ok, properties, properties_size} <- encode_properties(@subscribe, properties),
+         {:ok, properties_vbi, properties_vbi_size} <- encode_vbi(properties_size),
+         {:ok, topic_filters, topic_filter_size} <- encode_topic_filters(topic_filters) do
+      size = Enum.sum([properties_size, properties_vbi_size, topic_filter_size, 2])
+
+      with {:ok, vbi, vbi_size} <- encode_vbi(size) do
+        data = [
+          <<@subscribe::4, 2::4>>,
+          vbi,
+          <<packet_identifier::16>>,
+          properties_vbi,
+          properties,
+          topic_filters
+        ]
+
+        {:ok, data, vbi_size + size + 1}
+      end
     end
   end
 
@@ -794,12 +932,23 @@ defmodule ControlPacket do
       reason_codes: reason_codes
     } = suback
 
-    with {:ok, properties} <- encode_properties(@suback, properties),
-         {:ok, vbi} <- encode_vbi(byte_size(properties)),
-         {:ok, reason_codes} <- encode_reason_codes(@suback, reason_codes),
-         data <- <<packet_identifier::16, vbi::bytes, properties::bytes, reason_codes::bytes>>,
-         {:ok, vbi} <- encode_vbi(byte_size(data)) do
-      {:ok, <<@suback::4, 0::4, vbi::bytes, data::bytes>>}
+    with {:ok, properties, properties_size} <- encode_properties(@suback, properties),
+         {:ok, properties_vbi, properties_vbi_size} <- encode_vbi(properties_size),
+         {:ok, reason_codes, reason_codes_size} <- encode_reason_codes(@suback, reason_codes) do
+      size = Enum.sum([properties_size, properties_vbi_size, reason_codes_size, 2])
+
+      with {:ok, vbi, vbi_size} <- encode_vbi(size) do
+        data = [
+          <<@suback::4, 0::4>>,
+          vbi,
+          <<packet_identifier::16>>,
+          properties_vbi,
+          properties,
+          reason_codes
+        ]
+
+        {:ok, data, vbi_size + size + 1}
+      end
     end
   end
 
@@ -810,13 +959,23 @@ defmodule ControlPacket do
       topic_filters: topic_filters
     } = unsubscribe
 
-    with {:ok, properties} <- encode_properties(@unsubscribe, properties),
-         {:ok, vbi} <- encode_vbi(byte_size(properties)),
-         {:ok, topic_filters} <- encode_topic_filters(topic_filters),
-         data <-
-           <<packet_identifier::16, vbi::bytes, properties::bytes, topic_filters::bytes>>,
-         {:ok, vbi} <- encode_vbi(byte_size(data)) do
-      {:ok, <<@unsubscribe::4, 2::4, vbi::bytes, data::bytes>>}
+    with {:ok, properties, properties_size} <- encode_properties(@unsubscribe, properties),
+         {:ok, properties_vbi, properties_vbi_size} <- encode_vbi(properties_size),
+         {:ok, topic_filters, topic_filter_size} <- encode_topic_filters(topic_filters) do
+      size = Enum.sum([properties_size, properties_vbi_size, topic_filter_size, 2])
+
+      with {:ok, vbi, vbi_size} <- encode_vbi(size) do
+        data = [
+          <<@unsubscribe::4, 2::4>>,
+          vbi,
+          <<packet_identifier::16>>,
+          properties_vbi,
+          properties,
+          topic_filters
+        ]
+
+        {:ok, data, vbi_size + size + 1}
+      end
     end
   end
 
@@ -827,21 +986,42 @@ defmodule ControlPacket do
       reason_codes: reason_codes
     } = unsuback
 
-    with {:ok, properties} <- encode_properties(@unsuback, properties),
-         {:ok, vbi} <- encode_vbi(byte_size(properties)),
-         {:ok, reason_codes} <- encode_reason_codes(@unsuback, reason_codes),
-         data <- <<packet_identifier::16, vbi::bytes, properties::bytes, reason_codes::bytes>>,
-         {:ok, vbi} <- encode_vbi(byte_size(data)) do
-      {:ok, <<@unsuback::4, 0::4, vbi::bytes, data::bytes>>}
+    with {:ok, properties, properties_size} <- encode_properties(@unsuback, properties),
+         {:ok, properties_vbi, properties_vbi_size} <- encode_vbi(properties_size),
+         {:ok, reason_codes, reason_codes_size} <- encode_reason_codes(@unsuback, reason_codes) do
+      size = Enum.sum([properties_size, properties_vbi_size, reason_codes_size, 2])
+
+      with {:ok, vbi, vbi_size} <- encode_vbi(size) do
+        data = [
+          <<@unsuback::4, 0::4>>,
+          vbi,
+          <<packet_identifier::16>>,
+          properties_vbi,
+          properties,
+          reason_codes
+        ]
+
+        {:ok, data, vbi_size + size + 1}
+      end
     end
   end
 
   def encode(%ControlPacket.Pingreq{}) do
-    {:ok, <<@pingreq::4, 0::4, 0>>}
+    {:ok, <<@pingreq::4, 0::4, 0>>, 2}
   end
 
   def encode(%ControlPacket.Pingresp{}) do
-    {:ok, <<@pingresp::4, 0::4, 0>>}
+    {:ok, <<@pingresp::4, 0::4, 0>>, 2}
+  end
+
+  def encode(%ControlPacket.Disconnect{reason_code: :normal_disconnection, properties: []}) do
+    {:ok, <<@disconnect::4, 0::4, 0>>, 2}
+  end
+
+  def encode(%ControlPacket.Disconnect{reason_code: reason_code, properties: []}) do
+    with {:ok, reason_code} <- encode_reason_code(@disconnect, reason_code) do
+      {:ok, <<@disconnect::4, 0::4, 1, reason_code>>, 3}
+    end
   end
 
   def encode(%ControlPacket.Disconnect{} = disconnect) do
@@ -850,12 +1030,22 @@ defmodule ControlPacket do
       properties: properties
     } = disconnect
 
-    with {:ok, properties} <- encode_properties(@disconnect, properties),
-         {:ok, vbi} <- encode_vbi(byte_size(properties)),
-         {:ok, reason_code} <- encode_reason_code(@disconnect, reason_code),
-         data <- <<reason_code, vbi::bytes, properties::bytes>>,
-         {:ok, vbi} <- encode_vbi(byte_size(data)) do
-      {:ok, <<@disconnect::4, 0::4, vbi::bytes, data::bytes>>}
+    with {:ok, properties, properties_size} <- encode_properties(@disconnect, properties),
+         {:ok, properties_vbi, properties_vbi_size} <- encode_vbi(properties_size),
+         {:ok, reason_code} <- encode_reason_code(@disconnect, reason_code) do
+      size = Enum.sum([properties_size, properties_vbi_size, 1])
+
+      with {:ok, vbi, vbi_size} <- encode_vbi(size) do
+        data = [
+          <<@unsuback::4, 0::4>>,
+          vbi,
+          reason_code,
+          properties_vbi,
+          properties
+        ]
+
+        {:ok, data, vbi_size + size + 1}
+      end
     end
   end
 
@@ -865,12 +1055,22 @@ defmodule ControlPacket do
       properties: properties
     } = auth
 
-    with {:ok, properties} <- encode_properties(@auth, properties),
-         {:ok, vbi} <- encode_vbi(byte_size(properties)),
-         {:ok, reason_code} <- encode_reason_code(@auth, reason_code),
-         data <- <<reason_code, vbi::bytes, properties::bytes>>,
-         {:ok, vbi} <- encode_vbi(byte_size(data)) do
-      {:ok, <<@auth::4, 0::4, vbi::bytes, data::bytes>>}
+    with {:ok, properties, properties_size} <- encode_properties(@auth, properties),
+         {:ok, properties_vbi, properties_vbi_size} <- encode_vbi(properties_size),
+         {:ok, reason_code} <- encode_reason_code(@auth, reason_code) do
+      size = Enum.sum([properties_size, properties_vbi_size, 1])
+
+      with {:ok, vbi, vbi_size} <- encode_vbi(size) do
+        data = [
+          <<@auth::4, 0::4>>,
+          vbi,
+          reason_code,
+          properties_vbi,
+          properties
+        ]
+
+        {:ok, data, vbi_size + size + 1}
+      end
     end
   end
 
@@ -1343,40 +1543,42 @@ defmodule ControlPacket do
 
   defp decode_properties(_, _, _), do: {:error, :malformed_packet}
 
-  defp encode_packet_identifier(:at_most_once, _, data) do
-    {:ok, data}
+  defp encode_packet_identifier(:at_most_once, _) do
+    {:ok, [], 0}
   end
 
-  defp encode_packet_identifier(_, packet_identifier, data) do
-    {:ok, data <> <<packet_identifier::16>>}
+  defp encode_packet_identifier(_, packet_identifier) do
+    {:ok, [<<packet_identifier::16>>], 2}
   end
 
-  defp encode_string(nil, data) do
-    {:ok, data}
+  defp encode_string(nil) do
+    {:ok, [], 0}
   end
 
-  defp encode_string(string, data) do
-    {:ok, data <> <<byte_size(string)::16, string::bytes>>}
+  defp encode_string(string) do
+    string_size = byte_size(string)
+
+    data = [<<string_size::16>>, string]
+    size = string_size + 2
+
+    {:ok, data, size}
   end
 
-  defp encode_will(nil, data) do
-    {:ok, data}
+  defp encode_will(nil) do
+    {:ok, [], 0}
   end
 
-  defp encode_will(will, data) do
+  defp encode_will(will) do
     with %{properties: properties, topic: topic, payload: payload} <- will,
-         {:ok, properties} <- encode_properties(:will, properties),
-         {:ok, vbi} <- encode_vbi(byte_size(properties)) do
-      {:ok,
-       data <>
-         <<
-           vbi::bytes,
-           properties::bytes,
-           byte_size(topic)::16,
-           topic::bytes,
-           byte_size(payload)::16,
-           payload::bytes
-         >>}
+         {:ok, properties, properties_size} <- encode_properties(:will, properties),
+         {:ok, vbi, vbi_size} <- encode_vbi(properties_size) do
+      topic_size = byte_size(topic)
+      payload_size = byte_size(payload)
+
+      data = [vbi, properties, <<topic_size::16>>, topic, <<payload_size::16>>, payload]
+      size = Enum.sum([vbi_size, properties_size, 2, topic_size, 2, payload_size])
+
+      {:ok, data, size}
     end
   end
 
@@ -1384,12 +1586,12 @@ defmodule ControlPacket do
     (!!boolean && 1) || 0
   end
 
-  defp encode_reason_codes(code, list), do: encode_reason_codes(code, list, <<>>)
-  defp encode_reason_codes(_, [], data), do: {:ok, data}
+  defp encode_reason_codes(code, list), do: encode_reason_codes(code, list, [])
+  defp encode_reason_codes(_, [], data), do: {:ok, Enum.reverse(data), length(data)}
 
   defp encode_reason_codes(code, [reason_code | list], data) do
     {:ok, reason_code} = encode_reason_code(code, reason_code)
-    encode_reason_codes(code, list, data <> <<reason_code>>)
+    encode_reason_codes(code, list, [reason_code | data])
   end
 
   defp encode_reason_code(code, :success)
@@ -1600,41 +1802,45 @@ defmodule ControlPacket do
     {:ok, @wildcard_subscriptions_not_supported}
   end
 
-  defp encode_vbi(0), do: {:ok, <<0>>}
-  defp encode_vbi(data), do: encode_vbi(data, <<>>)
+  defp encode_reason_code(_, _), do: {:error, :malformed_packet}
 
-  defp encode_vbi(0, data), do: {:ok, data}
+  defp encode_vbi(0), do: {:ok, [0], 1}
+  defp encode_vbi(data), do: encode_vbi(data, [])
+
+  defp encode_vbi(0, data), do: {:ok, Enum.reverse(data), length(data)}
 
   defp encode_vbi(integer, data) do
     encoded_byte = integer &&& 127
     integer = integer >>> 7
 
     if integer > 0 do
-      encode_vbi(integer, data <> <<encoded_byte ||| 128>>)
+      encode_vbi(integer, [<<encoded_byte ||| 128>> | data])
     else
-      encode_vbi(integer, data <> <<encoded_byte>>)
+      encode_vbi(integer, [<<encoded_byte>> | data])
     end
   end
 
-  defp encode_topic_filters(list), do: encode_topic_filters(list, <<>>)
-  defp encode_topic_filters([], data), do: {:ok, data}
+  defp encode_topic_filters(list), do: encode_topic_filters(list, [], 0)
+  defp encode_topic_filters([], data, size), do: {:ok, Enum.reverse(data), size}
 
-  defp encode_topic_filters([{topic_filter, sub_opts} | list], data) do
+  defp encode_topic_filters([{topic_filter, sub_opts} | list], data, size) do
     %{retain_handling: retain_handling, rap: rap, nl: nl, qos: qos} = sub_opts
-    {:ok, retain_handling} = encode_retain_handling(retain_handling)
-    {:ok, qos} = encode_qos(qos)
 
-    encoded_data = <<
-      byte_size(topic_filter)::16,
-      topic_filter::bytes,
-      0::2,
-      retain_handling::2,
-      encode_boolean(rap)::1,
-      encode_boolean(nl)::1,
-      qos::2
-    >>
+    with {:ok, retain_handling} <- encode_retain_handling(retain_handling),
+         {:ok, qos} <- encode_qos(qos) do
+      topic_filter_size = byte_size(topic_filter)
 
-    encode_topic_filters(list, data <> encoded_data)
+      data = [
+        [
+          <<topic_filter_size::16>>,
+          topic_filter,
+          <<0::2, retain_handling::2, encode_boolean(rap)::1, encode_boolean(nl)::1, qos::2>>
+        ]
+        | data
+      ]
+
+      encode_topic_filters(list, data, size + 2 + topic_filter_size + 1)
+    end
   end
 
   defp encode_retain_handling(retain_handling) do
@@ -1655,183 +1861,174 @@ defmodule ControlPacket do
     end
   end
 
-  defp encode_properties(_, []), do: {:ok, <<>>}
+  defp encode_properties(_, []), do: {:ok, [], 0}
 
   defp encode_properties(code, properties) do
-    encode_properties(code, properties, <<>>)
+    encode_properties(code, properties, [], 0)
   end
 
-  defp encode_properties(code, [{:payload_format_indicator, byte} | list], data)
+  defp encode_properties(code, [{:payload_format_indicator, byte} | list], data, size)
        when code in [@publish, :will] do
-    data = data <> <<@payload_format_indicator, byte>>
-    encode_properties(code, list, data)
+    bytes = <<@payload_format_indicator, byte>>
+    encode_properties(code, list, [bytes | data], size + byte_size(bytes))
   end
 
-  defp encode_properties(code, [{:message_expiry_interval, four_byte} | list], data)
+  defp encode_properties(code, [{:message_expiry_interval, four_byte} | list], data, size)
        when code in [@publish, :will] do
-    data = data <> <<@message_expiry_interval, four_byte::32>>
-    encode_properties(code, list, data)
+    bytes = <<@message_expiry_interval, four_byte::32>>
+    encode_properties(code, list, [bytes | data], size + byte_size(bytes))
   end
 
-  defp encode_properties(code, [{:content_type, string} | list], data)
+  defp encode_properties(code, [{:content_type, string} | list], data, size)
        when code in [@publish, :will] do
-    data = data <> <<@content_type, byte_size(string)::16, string::bytes>>
-    encode_properties(code, list, data)
+    bytes = <<@content_type, byte_size(string)::16, string::bytes>>
+    encode_properties(code, list, [bytes | data], size + byte_size(bytes))
   end
 
-  defp encode_properties(code, [{:response_topic, string} | list], data)
+  defp encode_properties(code, [{:response_topic, string} | list], data, size)
        when code in [@publish, :will] do
-    data = data <> <<@response_topic, byte_size(string)::16, string::bytes>>
-    encode_properties(code, list, data)
+    bytes = <<@response_topic, byte_size(string)::16, string::bytes>>
+    encode_properties(code, list, [bytes | data], size + byte_size(bytes))
   end
 
-  defp encode_properties(code, [{:correlation_data, string} | list], data) do
-    data = data <> <<@correlation_data, byte_size(string)::16, string::bytes>>
-    encode_properties(code, list, data)
+  defp encode_properties(code, [{:correlation_data, string} | list], data, size) do
+    bytes = <<@correlation_data, byte_size(string)::16, string::bytes>>
+    encode_properties(code, list, [bytes | data], size + byte_size(bytes))
   end
 
-  defp encode_properties(code, [{:subscription_identifier, vbi} | list], data)
+  defp encode_properties(code, [{:subscription_identifier, vbi} | list], data, size)
        when code in [@publish, @subscribe] do
-    {:ok, vbi} = encode_vbi(vbi)
-    data = data <> <<@subscription_identifier, vbi::bytes>>
-    encode_properties(code, list, data)
+    {:ok, vbi, vbi_size} = encode_vbi(vbi)
+    bytes = [@subscription_identifier, vbi]
+    encode_properties(code, list, [bytes | data], size + vbi_size + 1)
   end
 
-  defp encode_properties(code, [{:session_expiry_interval, four_byte} | list], data)
+  defp encode_properties(code, [{:session_expiry_interval, four_byte} | list], data, size)
        when code in [@connect, @connack, @disconnect] do
-    data = data <> <<@session_expiry_interval, four_byte::32>>
-    encode_properties(code, list, data)
+    bytes = <<@session_expiry_interval, four_byte::32>>
+    encode_properties(code, list, [bytes | data], size + byte_size(bytes))
   end
 
-  defp encode_properties(code, [{:assigned_client_identifier, string} | list], data)
+  defp encode_properties(code, [{:assigned_client_identifier, string} | list], data, size)
        when code in [@connack] do
-    data = data <> <<@assigned_client_identifier, byte_size(string)::16, string::bytes>>
-    encode_properties(code, list, data)
+    bytes = <<@assigned_client_identifier, byte_size(string)::16, string::bytes>>
+    encode_properties(code, list, [bytes | data], size + byte_size(bytes))
   end
 
-  defp encode_properties(code, [{:server_keep_alive, two_byte} | list], data)
+  defp encode_properties(code, [{:server_keep_alive, two_byte} | list], data, size)
        when code in [@connack] do
-    data = data <> <<@server_keep_alive, two_byte::16>>
-    encode_properties(code, list, data)
+    bytes = <<@server_keep_alive, two_byte::16>>
+    encode_properties(code, list, [bytes | data], size + byte_size(bytes))
   end
 
-  defp encode_properties(code, [{:authentication_method, string} | list], data)
+  defp encode_properties(code, [{:authentication_method, string} | list], data, size)
        when code in [@connect, @connack, @auth] do
-    data = data <> <<@authentication_method, byte_size(string)::16, string::bytes>>
-    encode_properties(code, list, data)
+    bytes = <<@authentication_method, byte_size(string)::16, string::bytes>>
+    encode_properties(code, list, [bytes | data], size + byte_size(bytes))
   end
 
-  defp encode_properties(code, [{:authentication_data, string} | list], data)
+  defp encode_properties(code, [{:authentication_data, string} | list], data, size)
        when code in [@connect, @connack, @auth] do
-    data = data <> <<@authentication_data, byte_size(string)::16, string::bytes>>
-    encode_properties(code, list, data)
+    bytes = <<@authentication_data, byte_size(string)::16, string::bytes>>
+    encode_properties(code, list, [bytes | data], size + byte_size(bytes))
   end
 
-  defp encode_properties(code, [{:request_problem_information, byte} | list], data)
+  defp encode_properties(code, [{:request_problem_information, byte} | list], data, size)
        when code in [@connect] do
-    data = data <> <<@request_problem_information, byte>>
-    encode_properties(code, list, data)
+    bytes = <<@request_problem_information, byte>>
+    encode_properties(code, list, [bytes | data], size + byte_size(bytes))
   end
 
-  defp encode_properties(code, [{:will_delay_interval, four_byte} | list], data)
+  defp encode_properties(code, [{:will_delay_interval, four_byte} | list], data, size)
        when code in [:will] do
-    data = data <> <<@will_delay_interval, four_byte::32>>
-    encode_properties(code, list, data)
+    bytes = <<@will_delay_interval, four_byte::32>>
+    encode_properties(code, list, [bytes | data], size + byte_size(bytes))
   end
 
-  defp encode_properties(code, [{:request_response_information, byte} | list], data)
+  defp encode_properties(code, [{:request_response_information, byte} | list], data, size)
        when code in [@connect] do
-    data = data <> <<@request_response_information, byte>>
-    encode_properties(code, list, data)
+    bytes = <<@request_response_information, byte>>
+    encode_properties(code, list, [bytes | data], size + byte_size(bytes))
   end
 
-  defp encode_properties(code, [{:response_information, string} | list], data)
+  defp encode_properties(code, [{:response_information, string} | list], data, size)
        when code in [@connack] do
-    data = data <> <<@response_information, byte_size(string)::16, string::bytes>>
-    encode_properties(code, list, data)
+    bytes = <<@response_information, byte_size(string)::16, string::bytes>>
+    encode_properties(code, list, [bytes | data], size + byte_size(bytes))
   end
 
-  defp encode_properties(code, [{:server_reference, string} | list], data)
+  defp encode_properties(code, [{:server_reference, string} | list], data, size)
        when code in [@connack, @disconnect] do
-    data = data <> <<@server_reference, byte_size(string)::16, string::bytes>>
-    encode_properties(code, list, data)
+    bytes = <<@server_reference, byte_size(string)::16, string::bytes>>
+    encode_properties(code, list, [bytes | data], size + byte_size(bytes))
   end
 
-  defp encode_properties(code, [{:reason_string, string} | list], data)
+  defp encode_properties(code, [{:reason_string, string} | list], data, size)
        when code not in [@connect, @pingreq, @pingresp, @unsubscribe, :will] do
-    data = data <> <<@reason_string, byte_size(string)::16, string::bytes>>
-    encode_properties(code, list, data)
+    bytes = <<@reason_string, byte_size(string)::16, string::bytes>>
+    encode_properties(code, list, [bytes | data], size + byte_size(bytes))
   end
 
-  defp encode_properties(code, [{:receive_maximum, two_byte} | list], data)
+  defp encode_properties(code, [{:receive_maximum, two_byte} | list], data, size)
        when code in [@connect, @connack] do
-    data = data <> <<@receive_maximum, two_byte::16>>
-    encode_properties(code, list, data)
+    bytes = <<@receive_maximum, two_byte::16>>
+    encode_properties(code, list, [bytes | data], size + byte_size(bytes))
   end
 
-  defp encode_properties(code, [{:topic_alias_maximum, two_byte} | list], data)
+  defp encode_properties(code, [{:topic_alias_maximum, two_byte} | list], data, size)
        when code in [@connect, @connack] do
-    data = data <> <<@topic_alias_maximum, two_byte::16>>
-    encode_properties(code, list, data)
+    bytes = <<@topic_alias_maximum, two_byte::16>>
+    encode_properties(code, list, [bytes | data], size + byte_size(bytes))
   end
 
-  defp encode_properties(code, [{:topic_alias, two_byte} | list], data)
+  defp encode_properties(code, [{:topic_alias, two_byte} | list], data, size)
        when code in [@publish] do
-    data = data <> <<@topic_alias, two_byte::16>>
-    encode_properties(code, list, data)
+    bytes = <<@topic_alias, two_byte::16>>
+    encode_properties(code, list, [bytes | data], size + byte_size(bytes))
   end
 
-  defp encode_properties(code, [{:maximum_qos, byte} | list], data)
+  defp encode_properties(code, [{:maximum_qos, byte} | list], data, size)
        when code in [@connack] do
-    data = data <> <<@maximum_qos, byte>>
-    encode_properties(code, list, data)
+    bytes = <<@maximum_qos, byte>>
+    encode_properties(code, list, [bytes | data], size + byte_size(bytes))
   end
 
-  defp encode_properties(code, [{:retain_available, byte} | list], data)
+  defp encode_properties(code, [{:retain_available, byte} | list], data, size)
        when code in [@connack] do
-    data = data <> <<@retain_available, byte>>
-    encode_properties(code, list, data)
+    bytes = <<@retain_available, byte>>
+    encode_properties(code, list, [bytes | data], size + byte_size(bytes))
   end
 
-  defp encode_properties(code, [{:user_property, {key, value}} | list], data) do
-    data =
-      data <>
-        <<
-          @user_property,
-          byte_size(key)::16,
-          key::bytes,
-          byte_size(value)::16,
-          value::bytes
-        >>
-
-    encode_properties(code, list, data)
+  defp encode_properties(code, [{:user_property, {key, value}} | list], data, size) do
+    bytes = <<@user_property, byte_size(key)::16, key::bytes, byte_size(value)::16, value::bytes>>
+    encode_properties(code, list, [bytes | data], size + byte_size(bytes))
   end
 
-  defp encode_properties(code, [{:maximum_packet_size, four_byte} | list], data)
+  defp encode_properties(code, [{:maximum_packet_size, four_byte} | list], data, size)
        when code in [@connect, @connack] do
-    data = data <> <<@maximum_packet_size, four_byte::32>>
-    encode_properties(code, list, data)
+    bytes = <<@maximum_packet_size, four_byte::32>>
+    encode_properties(code, list, [bytes | data], size + byte_size(bytes))
   end
 
-  defp encode_properties(code, [{:wildcard_subscription_available, byte} | list], data)
+  defp encode_properties(code, [{:wildcard_subscription_available, byte} | list], data, size)
        when code in [@connack] do
-    data = data <> <<@wildcard_subscription_available, byte>>
-    encode_properties(code, list, data)
+    bytes = <<@wildcard_subscription_available, byte>>
+    encode_properties(code, list, [bytes | data], size + byte_size(bytes))
   end
 
-  defp encode_properties(code, [{:subscription_identifier_available, byte} | list], data)
+  defp encode_properties(code, [{:subscription_identifier_available, byte} | list], data, size)
        when code in [@connack] do
-    data = data <> <<@subscription_identifier_available, byte>>
-    encode_properties(code, list, data)
+    bytes = <<@subscription_identifier_available, byte>>
+    encode_properties(code, list, [bytes | data], size + byte_size(bytes))
   end
 
-  defp encode_properties(code, [{:shared_subscription_available, byte} | list], data)
+  defp encode_properties(code, [{:shared_subscription_available, byte} | list], data, size)
        when code in [@connack] do
-    data = data <> <<@shared_subscription_available, byte>>
-    encode_properties(code, list, data)
+    bytes = <<@shared_subscription_available, byte>>
+    encode_properties(code, list, [bytes | data], size + byte_size(bytes))
   end
 
-  defp encode_properties(_, [], data), do: {:ok, data}
+  defp encode_properties(_, [], data, size), do: {:ok, data, size}
 
-  defp encode_properties(_, _, _), do: {:error, :malformed_packet}
+  defp encode_properties(_, _, _, _), do: {:error, :malformed_packet}
 end

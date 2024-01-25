@@ -1,5 +1,5 @@
 defmodule ControlPacket.Disconnect do
   @moduledoc false
 
-  defstruct reason_code: :success, properties: []
+  defstruct reason_code: :normal_disconnection, properties: []
 end
