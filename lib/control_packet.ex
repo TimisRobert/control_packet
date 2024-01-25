@@ -102,7 +102,8 @@ defmodule ControlPacket do
   @dont_send 0b10
 
   def decode_buffer(buffer) do
-    decode_buffer(buffer, [], 0)
+    IO.iodata_to_binary(buffer)
+    |> decode_buffer([], 0)
   end
 
   defp decode_buffer(<<>>, list, total_size) do
@@ -119,11 +120,11 @@ defmodule ControlPacket do
         {:ok, list, total_size}
 
       {:error, error} ->
-        {:error, error, list}
+        {:error, error, list, total_size}
     end
   end
 
-  def decode(<<@connect::4, 0::4, rest::bytes>>) do
+  defp decode(<<@connect::4, 0::4, rest::bytes>>) do
     with {:ok, packet_vbi, packet_vbi_size} <- decode_vbi(rest),
          <<_::bytes-size(packet_vbi_size), rest::bytes-size(packet_vbi), _::bytes>> <- rest do
       with <<4::16, "MQTT", 5, username_flag::1, password_flag::1, will_retain::1, will_qos::2,
@@ -157,7 +158,7 @@ defmodule ControlPacket do
     end
   end
 
-  def decode(<<@connack::4, 0::4, rest::bytes>>) do
+  defp decode(<<@connack::4, 0::4, rest::bytes>>) do
     with {:ok, packet_vbi, packet_vbi_size} <- decode_vbi(rest),
          <<_::bytes-size(packet_vbi_size), rest::bytes-size(packet_vbi), _::bytes>> <- rest do
       with <<0::7, session_present::1, reason_code, rest::bytes>> <- rest,
@@ -180,7 +181,7 @@ defmodule ControlPacket do
     end
   end
 
-  def decode(<<@publish::4, flags::bits-4, rest::bytes>>) do
+  defp decode(<<@publish::4, flags::bits-4, rest::bytes>>) do
     with {:ok, packet_vbi, packet_vbi_size} <- decode_vbi(rest),
          <<_::bytes-size(packet_vbi_size), rest::bytes-size(packet_vbi), _::bytes>> <- rest do
       with <<dup_flag::1, qos_level::2, retain::1>> <- flags,
@@ -189,7 +190,8 @@ defmodule ControlPacket do
            {:ok, packet_identifier, size} <- decode_packet_identifier(qos_level, rest),
            <<_::size(size), rest::bytes>> <- rest,
            {:ok, vbi, size} <- decode_vbi(rest),
-           <<_::bytes-size(size), properties::bytes-size(vbi), payload::bytes>> <- rest do
+           <<_::bytes-size(size), properties::bytes-size(vbi), payload_size::16,
+             payload::bytes-size(payload_size)>> <- rest do
         with {:ok, properties} <- decode_properties(@publish, properties) do
           {:ok,
            %ControlPacket.Publish{
@@ -210,25 +212,25 @@ defmodule ControlPacket do
     end
   end
 
-  def decode(<<@puback::4, 0::4, 2, packet_identifier::16, _::bytes>>) do
+  defp decode(<<@puback::4, 0::4, 2, packet_identifier::16, _::bytes>>) do
     {:ok,
      %ControlPacket.Puback{
        packet_identifier: packet_identifier,
        reason_code: :success
-     }, 5}
+     }, 4}
   end
 
-  def decode(<<@puback::4, 0::4, 3, packet_identifier::16, reason_code, _::bytes>>) do
+  defp decode(<<@puback::4, 0::4, 3, packet_identifier::16, reason_code, _::bytes>>) do
     with {:ok, reason_code} <- decode_reason_code(@puback, reason_code) do
       {:ok,
        %ControlPacket.Puback{
          packet_identifier: packet_identifier,
          reason_code: reason_code
-       }, 6}
+       }, 5}
     end
   end
 
-  def decode(<<@puback::4, 0::4, rest::bytes>>) do
+  defp decode(<<@puback::4, 0::4, rest::bytes>>) do
     with {:ok, packet_vbi, packet_vbi_size} <- decode_vbi(rest),
          <<_::bytes-size(packet_vbi_size), rest::bytes-size(packet_vbi), _::bytes>> <- rest do
       with <<packet_identifier::16, reason_code, rest::bytes>> <- rest,
@@ -251,25 +253,25 @@ defmodule ControlPacket do
     end
   end
 
-  def decode(<<@pubrec::4, 0::4, 2, packet_identifier::16, _::bytes>>) do
+  defp decode(<<@pubrec::4, 0::4, 2, packet_identifier::16, _::bytes>>) do
     {:ok,
      %ControlPacket.Pubrec{
        packet_identifier: packet_identifier,
        reason_code: :success
-     }, 5}
+     }, 4}
   end
 
-  def decode(<<@pubrec::4, 0::4, 3, packet_identifier::16, reason_code, _::bytes>>) do
+  defp decode(<<@pubrec::4, 0::4, 3, packet_identifier::16, reason_code, _::bytes>>) do
     with {:ok, reason_code} <- decode_reason_code(@pubrec, reason_code) do
       {:ok,
        %ControlPacket.Pubrec{
          packet_identifier: packet_identifier,
          reason_code: reason_code
-       }, 6}
+       }, 5}
     end
   end
 
-  def decode(<<@pubrec::4, 0::4, rest::bytes>>) do
+  defp decode(<<@pubrec::4, 0::4, rest::bytes>>) do
     with {:ok, packet_vbi, packet_vbi_size} <- decode_vbi(rest),
          <<_::bytes-size(packet_vbi_size), rest::bytes-size(packet_vbi), _::bytes>> <- rest do
       with <<packet_identifier::16, reason_code, rest::bytes>> <- rest,
@@ -292,25 +294,25 @@ defmodule ControlPacket do
     end
   end
 
-  def decode(<<@pubrel::4, 2::4, 2, packet_identifier::16, _::bytes>>) do
+  defp decode(<<@pubrel::4, 2::4, 2, packet_identifier::16, _::bytes>>) do
     {:ok,
      %ControlPacket.Pubrel{
        packet_identifier: packet_identifier,
        reason_code: :success
-     }, 5}
+     }, 4}
   end
 
-  def decode(<<@pubrel::4, 2::4, 3, packet_identifier::16, reason_code, _::bytes>>) do
+  defp decode(<<@pubrel::4, 2::4, 3, packet_identifier::16, reason_code, _::bytes>>) do
     with {:ok, reason_code} <- decode_reason_code(@pubrel, reason_code) do
       {:ok,
        %ControlPacket.Pubrel{
          packet_identifier: packet_identifier,
          reason_code: reason_code
-       }, 6}
+       }, 5}
     end
   end
 
-  def decode(<<@pubrel::4, 2::4, rest::bytes>>) do
+  defp decode(<<@pubrel::4, 2::4, rest::bytes>>) do
     with {:ok, packet_vbi, packet_vbi_size} <- decode_vbi(rest),
          <<_::bytes-size(packet_vbi_size), rest::bytes-size(packet_vbi), _::bytes>> <- rest do
       with <<packet_identifier::16, reason_code, rest::bytes>> <- rest,
@@ -333,25 +335,25 @@ defmodule ControlPacket do
     end
   end
 
-  def decode(<<@pubcomp::4, 0::4, 2, packet_identifier::16, _::bytes>>) do
+  defp decode(<<@pubcomp::4, 0::4, 2, packet_identifier::16, _::bytes>>) do
     {:ok,
      %ControlPacket.Pubcomp{
        packet_identifier: packet_identifier,
        reason_code: :success
-     }, 5}
+     }, 4}
   end
 
-  def decode(<<@pubcomp::4, 0::4, 3, packet_identifier::16, reason_code, _::bytes>>) do
+  defp decode(<<@pubcomp::4, 0::4, 3, packet_identifier::16, reason_code, _::bytes>>) do
     with {:ok, reason_code} <- decode_reason_code(@pubcomp, reason_code) do
       {:ok,
        %ControlPacket.Pubcomp{
          packet_identifier: packet_identifier,
          reason_code: reason_code
-       }, 6}
+       }, 5}
     end
   end
 
-  def decode(<<@pubcomp::4, 0::4, rest::bytes>>) do
+  defp decode(<<@pubcomp::4, 0::4, rest::bytes>>) do
     with {:ok, packet_vbi, packet_vbi_size} <- decode_vbi(rest),
          <<_::bytes-size(packet_vbi_size), rest::bytes-size(packet_vbi), _::bytes>> <- rest do
       with <<packet_identifier::16, reason_code, rest::bytes>> <- rest,
@@ -374,14 +376,14 @@ defmodule ControlPacket do
     end
   end
 
-  def decode(<<@subscribe::4, 2::4, rest::bytes>>) do
+  defp decode(<<@subscribe::4, 2::4, rest::bytes>>) do
     with {:ok, packet_vbi, packet_vbi_size} <- decode_vbi(rest),
          <<_::bytes-size(packet_vbi_size), rest::bytes-size(packet_vbi), _::bytes>> <- rest do
       with <<packet_identifier::16, rest::bytes>> <- rest,
            {:ok, vbi, size} <- decode_vbi(rest),
            <<_::bytes-size(size), properties::bytes-size(vbi), rest::bytes>> <- rest do
         with {:ok, properties} <- decode_properties(@subscribe, properties),
-             {:ok, topic_filters} <- decode_topic_filters(rest) do
+             {:ok, topic_filters} <- decode_topic_flag_filters(rest) do
           {:ok,
            %ControlPacket.Subscribe{
              packet_identifier: packet_identifier,
@@ -397,7 +399,7 @@ defmodule ControlPacket do
     end
   end
 
-  def decode(<<@suback::4, 0::4, rest::bytes>>) do
+  defp decode(<<@suback::4, 0::4, rest::bytes>>) do
     with {:ok, packet_vbi, packet_vbi_size} <- decode_vbi(rest),
          <<_::bytes-size(packet_vbi_size), rest::bytes-size(packet_vbi), _::bytes>> <- rest,
          <<packet_identifier::16, rest::bytes>> <- rest,
@@ -417,7 +419,7 @@ defmodule ControlPacket do
     end
   end
 
-  def decode(<<@unsubscribe::4, 2::4, rest::bytes>>) do
+  defp decode(<<@unsubscribe::4, 2::4, rest::bytes>>) do
     with {:ok, packet_vbi, packet_vbi_size} <- decode_vbi(rest),
          <<_::bytes-size(packet_vbi_size), rest::bytes-size(packet_vbi), _::bytes>> <- rest do
       with <<packet_identifier::16, rest::bytes>> <- rest,
@@ -440,7 +442,7 @@ defmodule ControlPacket do
     end
   end
 
-  def decode(<<@unsuback::4, 0::4, rest::bytes>>) do
+  defp decode(<<@unsuback::4, 0::4, rest::bytes>>) do
     with {:ok, packet_vbi, packet_vbi_size} <- decode_vbi(rest),
          <<_::bytes-size(packet_vbi_size), rest::bytes-size(packet_vbi), _::bytes>> <- rest do
       with <<packet_identifier::16, rest::bytes>> <- rest,
@@ -463,25 +465,25 @@ defmodule ControlPacket do
     end
   end
 
-  def decode(<<@pingreq::4, 0::4, 0, _::bytes>>) do
+  defp decode(<<@pingreq::4, 0::4, 0, _::bytes>>) do
     {:ok, %ControlPacket.Pingreq{}, 2}
   end
 
-  def decode(<<@pingresp::4, 0::4, 0, _::bytes>>) do
+  defp decode(<<@pingresp::4, 0::4, 0, _::bytes>>) do
     {:ok, %ControlPacket.Pingresp{}, 2}
   end
 
-  def decode(<<@disconnect::4, 0::4, 0, _::bytes>>) do
+  defp decode(<<@disconnect::4, 0::4, 0, _::bytes>>) do
     {:ok, %ControlPacket.Disconnect{reason_code: :normal_disconnection}, 2}
   end
 
-  def decode(<<@disconnect::4, 0::4, 1, reason_code, _::bytes>>) do
+  defp decode(<<@disconnect::4, 0::4, 1, reason_code, _::bytes>>) do
     with {:ok, reason_code} <- decode_reason_code(@disconnect, reason_code) do
       {:ok, %ControlPacket.Disconnect{reason_code: reason_code}, 3}
     end
   end
 
-  def decode(<<@disconnect::4, 0::4, rest::bytes>>) do
+  defp decode(<<@disconnect::4, 0::4, rest::bytes>>) do
     with {:ok, packet_vbi, packet_vbi_size} <- decode_vbi(rest),
          <<_::bytes-size(packet_vbi_size), rest::bytes-size(packet_vbi), _::bytes>> <- rest do
       with <<reason_code, rest::bytes>> <- rest,
@@ -503,11 +505,11 @@ defmodule ControlPacket do
     end
   end
 
-  def decode(<<@auth::4, 0::4, 0, _::bytes>>) do
+  defp decode(<<@auth::4, 0::4, 0, _::bytes>>) do
     {:ok, %ControlPacket.Auth{reason_code: :success}, 2}
   end
 
-  def decode(<<@auth::4, 0::4, rest::bytes>>) do
+  defp decode(<<@auth::4, 0::4, rest::bytes>>) do
     with {:ok, packet_vbi, packet_vbi_size} <- decode_vbi(rest),
          <<_::bytes-size(packet_vbi_size), rest::bytes-size(packet_vbi), _::bytes>> <- rest do
       with <<reason_code, rest::bytes>> <- rest,
@@ -529,7 +531,7 @@ defmodule ControlPacket do
     end
   end
 
-  def decode(_), do: {:error, :malformed_packet}
+  defp decode(_), do: {:error, :malformed_packet}
 
   defp decode_packet_identifier(:at_most_once, <<_::bytes>>), do: {:ok, nil, 0}
 
@@ -545,7 +547,7 @@ defmodule ControlPacket do
   defp decode_string(true, size, <<rest::bytes>>) do
     case rest do
       <<_::bytes-size(size), size::16, string::bytes-size(size), _::bytes>> ->
-        {:ok, string, size}
+        {:ok, string, size + 2}
 
       _ ->
         {:error, :malformed_packet}
@@ -587,9 +589,9 @@ defmodule ControlPacket do
     with {:ok, will_qos} <- encode_qos(will_qos),
          {:ok, properties, properties_size} <- encode_properties(@connect, properties),
          {:ok, properties_vbi, properties_vbi_size} <- encode_vbi(properties_size),
-         {:ok, will, will_size} <- encode_will(will),
-         {:ok, username, username_size} <- encode_string(username),
-         {:ok, password, password_size} <- encode_string(password) do
+         {:ok, encoded_will, will_size} <- encode_will(will),
+         {:ok, encoded_username, username_size} <- encode_string(username),
+         {:ok, encoded_password, password_size} <- encode_string(password) do
       variable_header =
         <<
           4::16,
@@ -629,9 +631,9 @@ defmodule ControlPacket do
           properties,
           <<clientid_size::16>>,
           clientid,
-          will,
-          username,
-          password
+          encoded_will,
+          encoded_username,
+          encoded_password
         ]
 
         {:ok, data, vbi_size + size + 1}
@@ -907,7 +909,7 @@ defmodule ControlPacket do
 
     with {:ok, properties, properties_size} <- encode_properties(@subscribe, properties),
          {:ok, properties_vbi, properties_vbi_size} <- encode_vbi(properties_size),
-         {:ok, topic_filters, topic_filter_size} <- encode_topic_filters(topic_filters) do
+         {:ok, topic_filters, topic_filter_size} <- encode_topic_flag_filters(topic_filters) do
       size = Enum.sum([properties_size, properties_vbi_size, topic_filter_size, 2])
 
       with {:ok, vbi, vbi_size} <- encode_vbi(size) do
@@ -1086,13 +1088,13 @@ defmodule ControlPacket do
     decode_reason_codes(code, rest, [reason_code | list])
   end
 
-  defp decode_topic_filters(data) do
-    decode_topic_filters(data, [])
+  defp decode_topic_flag_filters(data) do
+    decode_topic_flag_filters(data, [])
   end
 
-  defp decode_topic_filters(<<>>, list), do: {:ok, Enum.reverse(list)}
+  defp decode_topic_flag_filters(<<>>, list), do: {:ok, Enum.reverse(list)}
 
-  defp decode_topic_filters(<<data::bytes>>, list) do
+  defp decode_topic_flag_filters(<<data::bytes>>, list) do
     <<
       length::16,
       topic_filter::bytes-size(length),
@@ -1107,7 +1109,7 @@ defmodule ControlPacket do
     {:ok, retain_handling} = decode_retain_handling(retain_handling)
     {:ok, qos} = decode_qos(qos)
 
-    decode_topic_filters(rest, [
+    decode_topic_flag_filters(rest, [
       {topic_filter,
        %{
          retain_handling: retain_handling,
@@ -1117,6 +1119,22 @@ defmodule ControlPacket do
        }}
       | list
     ])
+  end
+
+  defp decode_topic_filters(data) do
+    decode_topic_filters(data, [])
+  end
+
+  defp decode_topic_filters(<<>>, list), do: {:ok, Enum.reverse(list)}
+
+  defp decode_topic_filters(<<data::bytes>>, list) do
+    <<
+      length::16,
+      topic_filter::bytes-size(length),
+      rest::bytes
+    >> = data
+
+    decode_topic_filters(rest, [topic_filter | list])
   end
 
   defp decode_retain_handling(integer) do
@@ -1364,7 +1382,7 @@ defmodule ControlPacket do
     end
   end
 
-  defp decode_properties(_, <<>>), do: {:ok, nil}
+  defp decode_properties(_, <<>>), do: {:ok, []}
 
   defp decode_properties(code, data) do
     decode_properties(code, data, [])
@@ -1506,9 +1524,9 @@ defmodule ControlPacket do
   defp decode_properties(code, <<@user_property, rest::bytes>>, list) do
     <<
       key_length::16,
-      key::size(key_length),
+      key::bytes-size(key_length),
       value_length::16,
-      value::size(value_length),
+      value::bytes-size(value_length),
       rest::bytes
     >> = rest
 
@@ -1820,10 +1838,10 @@ defmodule ControlPacket do
     end
   end
 
-  defp encode_topic_filters(list), do: encode_topic_filters(list, [], 0)
-  defp encode_topic_filters([], data, size), do: {:ok, Enum.reverse(data), size}
+  defp encode_topic_flag_filters(list), do: encode_topic_flag_filters(list, [], 0)
+  defp encode_topic_flag_filters([], data, size), do: {:ok, Enum.reverse(data), size}
 
-  defp encode_topic_filters([{topic_filter, sub_opts} | list], data, size) do
+  defp encode_topic_flag_filters([{topic_filter, sub_opts} | list], data, size) do
     %{retain_handling: retain_handling, rap: rap, nl: nl, qos: qos} = sub_opts
 
     with {:ok, retain_handling} <- encode_retain_handling(retain_handling),
@@ -1839,8 +1857,19 @@ defmodule ControlPacket do
         | data
       ]
 
-      encode_topic_filters(list, data, size + 2 + topic_filter_size + 1)
+      encode_topic_flag_filters(list, data, size + 2 + topic_filter_size + 1)
     end
+  end
+
+  defp encode_topic_filters(list), do: encode_topic_filters(list, [], 0)
+  defp encode_topic_filters([], data, size), do: {:ok, Enum.reverse(data), size}
+
+  defp encode_topic_filters([topic_filter | list], data, size) do
+    topic_filter_size = byte_size(topic_filter)
+
+    data = [[<<topic_filter_size::16>>, topic_filter] | data]
+
+    encode_topic_filters(list, data, size + 2 + topic_filter_size)
   end
 
   defp encode_retain_handling(retain_handling) do

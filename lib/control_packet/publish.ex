@@ -1,7 +1,7 @@
 defmodule ControlPacket.Publish do
   @moduledoc false
 
-  @enforce_keys [:topic_name, :packet_identifier]
+  @enforce_keys [:topic_name]
   defstruct dup_flag: false,
             qos_level: :at_most_once,
             retain: false,
