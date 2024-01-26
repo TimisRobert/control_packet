@@ -401,18 +401,21 @@ defmodule ControlPacket do
 
   defp decode(<<@suback::4, 0::4, rest::bytes>>) do
     with {:ok, packet_vbi, packet_vbi_size} <- decode_vbi(rest),
-         <<_::bytes-size(packet_vbi_size), rest::bytes-size(packet_vbi), _::bytes>> <- rest,
-         <<packet_identifier::16, rest::bytes>> <- rest,
-         {:ok, vbi, size} <- decode_vbi(rest),
-         <<_::bytes-size(size), properties::bytes-size(vbi), rest::bytes>> <- rest do
-      with {:ok, properties} <- decode_properties(@suback, properties),
-           {:ok, reason_codes} <- decode_reason_codes(@suback, rest) do
-        {:ok,
-         %ControlPacket.Suback{
-           packet_identifier: packet_identifier,
-           properties: properties,
-           reason_codes: reason_codes
-         }, packet_vbi + packet_vbi_size + 1}
+         <<_::bytes-size(packet_vbi_size), rest::bytes-size(packet_vbi), _::bytes>> <- rest do
+      with <<packet_identifier::16, rest::bytes>> <- rest,
+           {:ok, vbi, size} <- decode_vbi(rest),
+           <<_::bytes-size(size), properties::bytes-size(vbi), rest::bytes>> <- rest do
+        with {:ok, properties} <- decode_properties(@suback, properties),
+             {:ok, reason_codes} <- decode_reason_codes(@suback, rest) do
+          {:ok,
+           %ControlPacket.Suback{
+             packet_identifier: packet_identifier,
+             properties: properties,
+             reason_codes: reason_codes
+           }, packet_vbi + packet_vbi_size + 1}
+        end
+      else
+        _ -> {:error, :malformed_packet}
       end
     else
       _ -> {:error, :incomplete_packet}
@@ -1857,7 +1860,9 @@ defmodule ControlPacket do
         | data
       ]
 
-      encode_topic_flag_filters(list, data, size + 2 + topic_filter_size + 1)
+      size = Enum.sum([size, 2, topic_filter_size, 1])
+
+      encode_topic_flag_filters(list, data, size)
     end
   end
 
@@ -1869,7 +1874,9 @@ defmodule ControlPacket do
 
     data = [[<<topic_filter_size::16>>, topic_filter] | data]
 
-    encode_topic_filters(list, data, size + 2 + topic_filter_size)
+    size = Enum.sum([size, 2, topic_filter_size])
+
+    encode_topic_filters(list, data, size)
   end
 
   defp encode_retain_handling(retain_handling) do
