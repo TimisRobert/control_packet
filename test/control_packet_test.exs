@@ -52,9 +52,10 @@ defmodule ControlPacketTest do
       payload: "test",
       packet_identifier: 1,
       qos_level: :at_least_once,
-      properties: [
-        user_property: {"test", "test"}
-      ]
+      properties: %{
+        user_property: %{"test" => "test"},
+        payload_format_indicator: 0
+      }
     }
 
     {:ok, encoded, _size} = ControlPacket.encode(packet)

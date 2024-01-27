@@ -7,6 +7,6 @@ defmodule ControlPacket.Publish do
             retain: false,
             topic_name: nil,
             packet_identifier: nil,
-            properties: [],
+            properties: %{},
             payload: nil
 end
