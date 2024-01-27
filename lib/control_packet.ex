@@ -1050,7 +1050,7 @@ defmodule ControlPacket do
 
       with {:ok, vbi, vbi_size} <- encode_vbi(size) do
         data = [
-          <<@unsuback::4, 0::4>>,
+          <<@disconnect::4, 0::4>>,
           vbi,
           reason_code,
           properties_vbi,
