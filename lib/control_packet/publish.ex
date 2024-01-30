@@ -3,10 +3,10 @@ defmodule ControlPacket.Publish do
 
   @enforce_keys [:topic_name]
   defstruct dup_flag: false,
-            qos_level: :at_most_once,
+            qos_level: :at_least_once,
             retain: false,
             topic_name: nil,
             packet_identifier: nil,
-            properties: %{},
+            properties: [],
             payload: nil
 end

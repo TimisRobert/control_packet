@@ -2,7 +2,7 @@ defmodule ControlPacket.Connect do
   @moduledoc false
 
   defstruct clientid: "",
-            properties: %{},
+            properties: [],
             clean_start: true,
             will: nil,
             will_retain: false,

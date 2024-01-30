@@ -716,8 +716,7 @@ defmodule ControlPacket do
     end
   end
 
-  def encode(%ControlPacket.Puback{reason_code: :success, properties: map} = puback)
-      when map_size(map) === 0 do
+  def encode(%ControlPacket.Puback{reason_code: :success, properties: []} = puback) do
     %ControlPacket.Puback{
       packet_identifier: packet_identifier
     } = puback
@@ -725,8 +724,7 @@ defmodule ControlPacket do
     {:ok, <<@puback::4, 0::4, 2, packet_identifier::16>>, 4}
   end
 
-  def encode(%ControlPacket.Puback{properties: map} = puback)
-      when map_size(map) === 0 do
+  def encode(%ControlPacket.Puback{properties: []} = puback) do
     %ControlPacket.Puback{
       packet_identifier: packet_identifier,
       reason_code: reason_code
@@ -764,8 +762,7 @@ defmodule ControlPacket do
     end
   end
 
-  def encode(%ControlPacket.Pubrec{reason_code: :success, properties: map} = pubrec)
-      when map_size(map) === 0 do
+  def encode(%ControlPacket.Pubrec{reason_code: :success, properties: []} = pubrec) do
     %ControlPacket.Pubrec{
       packet_identifier: packet_identifier
     } = pubrec
@@ -773,8 +770,7 @@ defmodule ControlPacket do
     {:ok, <<@pubrec::4, 0::4, 2, packet_identifier::16>>, 4}
   end
 
-  def encode(%ControlPacket.Pubrec{properties: map} = pubrec)
-      when map_size(map) === 0 do
+  def encode(%ControlPacket.Pubrec{properties: []} = pubrec) do
     %ControlPacket.Pubrec{
       packet_identifier: packet_identifier,
       reason_code: reason_code
@@ -812,8 +808,7 @@ defmodule ControlPacket do
     end
   end
 
-  def encode(%ControlPacket.Pubrel{reason_code: :success, properties: map} = pubrel)
-      when map_size(map) === 0 do
+  def encode(%ControlPacket.Pubrel{reason_code: :success, properties: []} = pubrel) do
     %ControlPacket.Pubrel{
       packet_identifier: packet_identifier
     } = pubrel
@@ -821,8 +816,7 @@ defmodule ControlPacket do
     {:ok, <<@pubrel::4, 2::4, 2, packet_identifier::16>>, 4}
   end
 
-  def encode(%ControlPacket.Pubrel{properties: map} = pubrel)
-      when map_size(map) === 0 do
+  def encode(%ControlPacket.Pubrel{properties: []} = pubrel) do
     %ControlPacket.Pubrel{
       packet_identifier: packet_identifier,
       reason_code: reason_code
@@ -860,8 +854,7 @@ defmodule ControlPacket do
     end
   end
 
-  def encode(%ControlPacket.Pubcomp{reason_code: :success, properties: map} = pubcomp)
-      when map_size(map) === 0 do
+  def encode(%ControlPacket.Pubcomp{reason_code: :success, properties: []} = pubcomp) do
     %ControlPacket.Pubcomp{
       packet_identifier: packet_identifier
     } = pubcomp
@@ -869,8 +862,7 @@ defmodule ControlPacket do
     {:ok, <<@pubcomp::4, 0::4, 2, packet_identifier::16>>, 4}
   end
 
-  def encode(%ControlPacket.Pubcomp{properties: map} = pubcomp)
-      when map_size(map) === 0 do
+  def encode(%ControlPacket.Pubcomp{properties: []} = pubcomp) do
     %ControlPacket.Pubcomp{
       packet_identifier: packet_identifier,
       reason_code: reason_code
@@ -1390,7 +1382,7 @@ defmodule ControlPacket do
     end
   end
 
-  defp decode_properties(_, <<>>), do: {:ok, %{}}
+  defp decode_properties(_, <<>>), do: {:ok, []}
 
   defp decode_properties(code, data) do
     decode_properties(code, data, [])
@@ -1565,11 +1557,11 @@ defmodule ControlPacket do
     decode_properties(code, rest, [{:shared_subscription_available, byte} | list])
   end
 
-  defp decode_properties(_, <<>>, list) do
-    {user_property, list} = Keyword.pop_values(list, :user_property)
+  defp decode_properties(_, <<>>, properties) do
+    {user_property, properties} = Keyword.pop_values(properties, :user_property)
 
     duplicates =
-      Enum.reduce_while(list, MapSet.new(), fn {k, _v}, acc ->
+      Enum.reduce_while(properties, MapSet.new(), fn {k, _v}, acc ->
         if MapSet.member?(acc, k) do
           {:halt, {:error, :protocol_error}}
         else
@@ -1582,8 +1574,8 @@ defmodule ControlPacket do
         error
 
       _ ->
-        list = Enum.into(list, %{}) |> Map.put(:user_property, Enum.into(user_property, %{}))
-        {:ok, list}
+        properties = Keyword.put(properties, :user_property, user_property)
+        {:ok, properties}
     end
   end
 
@@ -1591,6 +1583,10 @@ defmodule ControlPacket do
 
   defp encode_packet_identifier(:at_most_once, _) do
     {:ok, [], 0}
+  end
+
+  defp encode_packet_identifier(_, nil) do
+    {:error, :malformed_packet}
   end
 
   defp encode_packet_identifier(_, packet_identifier) do
@@ -1922,12 +1918,12 @@ defmodule ControlPacket do
     end
   end
 
-  defp encode_properties(_, map) when map_size(map) === 0, do: {:ok, [], 0}
+  defp encode_properties(_, []), do: {:ok, [], 0}
 
   defp encode_properties(code, properties) do
-    {user_property, properties} = Map.pop(properties, :user_property)
+    {user_property, properties} = Keyword.pop(properties, :user_property)
 
-    keys =
+    duplicates =
       Enum.reduce_while(properties, MapSet.new(), fn {k, _v}, acc ->
         if MapSet.member?(acc, k) do
           {:halt, {:error, :protocol_error}}
@@ -1936,15 +1932,12 @@ defmodule ControlPacket do
         end
       end)
 
-    case keys do
+    case duplicates do
       {:error, _} = error ->
         error
 
       _ ->
-        properties =
-          Enum.reduce(user_property, Enum.to_list(properties), fn up, properties ->
-            [{:user_property, up} | properties]
-          end)
+        properties = Enum.reduce(user_property, properties, &Keyword.put(&2, :user_property, &1))
 
         encode_properties(code, properties, [], 0)
     end
