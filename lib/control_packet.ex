@@ -103,18 +103,18 @@ defmodule ControlPacket do
 
   def decode_buffer(buffer) do
     IO.iodata_to_binary(buffer)
-    |> decode_buffer([])
+    |> decode_buffer([], 0)
   end
 
-  defp decode_buffer(<<>>, list) do
-    {:ok, Enum.reverse(list), 0}
+  defp decode_buffer(<<>>, list, total_size) do
+    {:ok, Enum.reverse(list), total_size}
   end
 
   defp decode_buffer(<<buffer::bytes>>, list, total_size) do
     case decode(buffer) do
       {:ok, packet, size} ->
         <<_::bytes-size(size), buffer::bytes>> = buffer
-        decode_buffer(buffer, [packet | list] size + total_size)
+        decode_buffer(buffer, [packet | list], size + total_size)
 
       {:error, error} ->
         {:error, error, Enum.reverse(list), total_size}
