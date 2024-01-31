@@ -107,17 +107,17 @@ defmodule ControlPacket do
   end
 
   defp decode_buffer(<<>>, list) do
-    {:ok, Enum.reverse(list)}
+    {:ok, Enum.reverse(list), 0}
   end
 
-  defp decode_buffer(<<buffer::bytes>>, list) do
+  defp decode_buffer(<<buffer::bytes>>, list, total_size) do
     case decode(buffer) do
       {:ok, packet, size} ->
         <<_::bytes-size(size), buffer::bytes>> = buffer
-        decode_buffer(buffer, [packet | list])
+        decode_buffer(buffer, [packet | list] size + total_size)
 
       {:error, error} ->
-        {:error, error, Enum.reverse(list)}
+        {:error, error, Enum.reverse(list), total_size}
     end
   end
 
