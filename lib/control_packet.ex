@@ -1109,16 +1109,9 @@ defmodule ControlPacket do
     {:ok, retain_handling} = decode_retain_handling(retain_handling)
     {:ok, qos} = decode_qos(qos)
 
-    decode_topic_flag_filters(rest, [
-      {topic_filter,
-       %{
-         retain_handling: retain_handling,
-         rap: rap == 1,
-         nl: nl == 1,
-         qos: qos
-       }}
-      | list
-    ])
+    flags = [retain_handling: retain_handling, rap: rap == 1, nl: nl == 1, qos: qos]
+    topic_filter_flag = {topic_filter, flags}
+    decode_topic_flag_filters(rest, [topic_filter_flag | list])
   end
 
   defp decode_topic_filters(data) do
@@ -1866,7 +1859,10 @@ defmodule ControlPacket do
   defp encode_topic_flag_filters([], data, size), do: {:ok, Enum.reverse(data), size}
 
   defp encode_topic_flag_filters([{topic_filter, sub_opts} | list], data, size) do
-    %{retain_handling: retain_handling, rap: rap, nl: nl, qos: qos} = sub_opts
+    retain_handling = Keyword.get(sub_opts, :retain_handling, :send_when_subscribed)
+    rap = Keyword.get(sub_opts, :rap, false)
+    nl = Keyword.get(sub_opts, :nl, false)
+    qos = Keyword.get(sub_opts, :qos, :at_least_once)
 
     with {:ok, retain_handling} <- encode_retain_handling(retain_handling),
          {:ok, qos} <- encode_qos(qos) do

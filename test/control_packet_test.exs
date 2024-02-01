@@ -11,7 +11,7 @@ defmodule ControlPacketTest do
 
     {:ok, encoded, _size} = ControlPacket.encode(packet)
 
-    {:ok, [decoded]} = ControlPacket.decode_buffer(encoded)
+    {:ok, [decoded], _size} = ControlPacket.decode_buffer(encoded)
     assert decoded === packet
 
     {:ok, encoded_again, _size} = ControlPacket.encode(decoded)
@@ -23,7 +23,7 @@ defmodule ControlPacketTest do
 
     {:ok, encoded, _size} = ControlPacket.encode(packet)
 
-    {:ok, [decoded]} = ControlPacket.decode_buffer(encoded)
+    {:ok, [decoded], _size} = ControlPacket.decode_buffer(encoded)
     assert decoded === packet
 
     {:ok, encoded_again, _size} = ControlPacket.encode(decoded)
@@ -39,7 +39,7 @@ defmodule ControlPacketTest do
 
     {:ok, encoded, _size} = ControlPacket.encode(packet)
 
-    {:ok, [decoded]} = ControlPacket.decode_buffer(encoded)
+    {:ok, [decoded], _size} = ControlPacket.decode_buffer(encoded)
     assert decoded === packet
 
     {:ok, encoded_again, _size} = ControlPacket.encode(decoded)
@@ -60,7 +60,7 @@ defmodule ControlPacketTest do
 
     {:ok, encoded, _size} = ControlPacket.encode(packet)
 
-    {:ok, [decoded]} = ControlPacket.decode_buffer(encoded)
+    {:ok, [decoded], _size} = ControlPacket.decode_buffer(encoded)
     assert decoded === packet
 
     {:ok, encoded_again, _size} = ControlPacket.encode(decoded)
@@ -74,7 +74,7 @@ defmodule ControlPacketTest do
 
     {:ok, encoded, _size} = ControlPacket.encode(packet)
 
-    {:ok, [decoded]} = ControlPacket.decode_buffer(encoded)
+    {:ok, [decoded], _size} = ControlPacket.decode_buffer(encoded)
     assert decoded === packet
 
     {:ok, encoded_again, _size} = ControlPacket.encode(decoded)
@@ -88,7 +88,7 @@ defmodule ControlPacketTest do
 
     {:ok, encoded, _size} = ControlPacket.encode(packet)
 
-    {:ok, [decoded]} = ControlPacket.decode_buffer(encoded)
+    {:ok, [decoded], _size} = ControlPacket.decode_buffer(encoded)
     assert decoded === packet
 
     {:ok, encoded_again, _size} = ControlPacket.encode(decoded)
@@ -102,7 +102,7 @@ defmodule ControlPacketTest do
 
     {:ok, encoded, _size} = ControlPacket.encode(packet)
 
-    {:ok, [decoded]} = ControlPacket.decode_buffer(encoded)
+    {:ok, [decoded], _size} = ControlPacket.decode_buffer(encoded)
     assert decoded === packet
 
     {:ok, encoded_again, _size} = ControlPacket.encode(decoded)
@@ -116,7 +116,7 @@ defmodule ControlPacketTest do
 
     {:ok, encoded, _size} = ControlPacket.encode(packet)
 
-    {:ok, [decoded]} = ControlPacket.decode_buffer(encoded)
+    {:ok, [decoded], _size} = ControlPacket.decode_buffer(encoded)
     assert decoded === packet
 
     {:ok, encoded_again, _size} = ControlPacket.encode(decoded)
@@ -127,14 +127,16 @@ defmodule ControlPacketTest do
     packet = %ControlPacket.Subscribe{
       packet_identifier: 1,
       topic_filters: [
-        {"test", %{retain_handling: :dont_send, rap: false, nl: false, qos: :at_most_once}},
-        {"test2", %{retain_handling: :dont_send, rap: false, nl: true, qos: :at_least_once}}
+        {"test",
+         retain_handling: :send_when_subscribed, rap: false, nl: false, qos: :at_least_once},
+        {"test2",
+         retain_handling: :send_when_subscribed, rap: false, nl: false, qos: :at_least_once}
       ]
     }
 
     {:ok, encoded, _size} = ControlPacket.encode(packet)
 
-    {:ok, [decoded]} = ControlPacket.decode_buffer(encoded)
+    {:ok, [decoded], _size} = ControlPacket.decode_buffer(encoded)
     assert decoded === packet
 
     {:ok, encoded_again, _size} = ControlPacket.encode(decoded)
@@ -149,7 +151,7 @@ defmodule ControlPacketTest do
 
     {:ok, encoded, _size} = ControlPacket.encode(packet)
 
-    {:ok, [decoded]} = ControlPacket.decode_buffer(encoded)
+    {:ok, [decoded], _size} = ControlPacket.decode_buffer(encoded)
     assert decoded === packet
 
     {:ok, encoded_again, _size} = ControlPacket.encode(decoded)
@@ -164,7 +166,7 @@ defmodule ControlPacketTest do
 
     {:ok, encoded, _size} = ControlPacket.encode(packet)
 
-    {:ok, [decoded]} = ControlPacket.decode_buffer(encoded)
+    {:ok, [decoded], _size} = ControlPacket.decode_buffer(encoded)
     assert decoded === packet
 
     {:ok, encoded_again, _size} = ControlPacket.encode(decoded)
@@ -179,7 +181,7 @@ defmodule ControlPacketTest do
 
     {:ok, encoded, _size} = ControlPacket.encode(packet)
 
-    {:ok, [decoded]} = ControlPacket.decode_buffer(encoded)
+    {:ok, [decoded], _size} = ControlPacket.decode_buffer(encoded)
     assert decoded === packet
 
     {:ok, encoded_again, _size} = ControlPacket.encode(decoded)
@@ -191,7 +193,7 @@ defmodule ControlPacketTest do
 
     {:ok, encoded, _size} = ControlPacket.encode(packet)
 
-    {:ok, [decoded]} = ControlPacket.decode_buffer(encoded)
+    {:ok, [decoded], _size} = ControlPacket.decode_buffer(encoded)
     assert decoded === packet
 
     {:ok, encoded_again, _size} = ControlPacket.encode(decoded)
@@ -203,7 +205,7 @@ defmodule ControlPacketTest do
 
     {:ok, encoded, _size} = ControlPacket.encode(packet)
 
-    {:ok, [decoded]} = ControlPacket.decode_buffer(encoded)
+    {:ok, [decoded], _size} = ControlPacket.decode_buffer(encoded)
     assert decoded === packet
 
     {:ok, encoded_again, _size} = ControlPacket.encode(decoded)
@@ -215,7 +217,7 @@ defmodule ControlPacketTest do
 
     {:ok, encoded, _size} = ControlPacket.encode(packet)
 
-    {:ok, [decoded]} = ControlPacket.decode_buffer(encoded)
+    {:ok, [decoded], _size} = ControlPacket.decode_buffer(encoded)
     assert decoded === packet
 
     {:ok, encoded_again, _size} = ControlPacket.encode(decoded)
@@ -227,7 +229,7 @@ defmodule ControlPacketTest do
 
     {:ok, encoded, _size} = ControlPacket.encode(packet)
 
-    {:ok, [decoded]} = ControlPacket.decode_buffer(encoded)
+    {:ok, [decoded], _size} = ControlPacket.decode_buffer(encoded)
     assert decoded === packet
 
     {:ok, encoded_again, _size} = ControlPacket.encode(decoded)
