@@ -187,8 +187,7 @@ defmodule ControlPacket do
            {:ok, packet_identifier, size} <- decode_packet_identifier(qos_level, rest),
            <<_::size(size), rest::bytes>> <- rest,
            {:ok, vbi, size} <- decode_vbi(rest),
-           <<_::bytes-size(size), properties::bytes-size(vbi), payload_size::16,
-             payload::bytes-size(payload_size)>> <- rest do
+           <<_::bytes-size(size), properties::bytes-size(vbi), payload::bytes>> <- rest do
         with {:ok, properties} <- decode_properties(@publish, properties) do
           {:ok,
            %ControlPacket.Publish{
@@ -694,7 +693,6 @@ defmodule ControlPacket do
           packet_identifier_size,
           properties_vbi_size,
           properties_size,
-          2,
           payload_size
         ])
 
@@ -707,7 +705,6 @@ defmodule ControlPacket do
           packet_identifier,
           properties_vbi,
           properties,
-          <<byte_size(payload)::16>>,
           payload
         ]
 
