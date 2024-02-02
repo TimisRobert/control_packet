@@ -4,6 +4,6 @@ defmodule ControlPacket.Pingreq do
   defstruct []
 
   def new() do
-    struct(__MODULE__)
+    {:ok, struct!(__MODULE__)}
   end
 end

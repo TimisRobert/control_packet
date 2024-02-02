@@ -18,7 +18,7 @@ defmodule ControlPacket.Unsuback do
                 |> Keyword.put(:reason_codes, reason_codes)
                 |> Keyword.put(:properties, properties)
 
-              struct(__MODULE__, opts)
+              {:ok, struct!(__MODULE__, opts)}
             end
 
           _ ->

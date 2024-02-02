@@ -32,7 +32,7 @@ defmodule ControlPacket.Publish do
                 |> Keyword.put(:payload, payload)
                 |> Keyword.put(:properties, properties)
 
-              struct(__MODULE__, opts)
+              {:ok, struct!(__MODULE__, opts)}
             end
 
           {_, {:ok, packet_identifier}}
@@ -46,7 +46,7 @@ defmodule ControlPacket.Publish do
                 |> Keyword.put(:payload, payload)
                 |> Keyword.put(:properties, properties)
 
-              struct(__MODULE__, opts)
+              {:ok, struct!(__MODULE__, opts)}
             end
 
           _ ->

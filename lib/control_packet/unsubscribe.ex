@@ -18,7 +18,7 @@ defmodule ControlPacket.Unsubscribe do
                 |> Keyword.put(:topic_filters, topic_filters)
                 |> Keyword.put(:properties, properties)
 
-              struct(__MODULE__, opts)
+              {:ok, struct!(__MODULE__, opts)}
             end
 
           _ ->

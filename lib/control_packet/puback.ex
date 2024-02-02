@@ -17,7 +17,7 @@ defmodule ControlPacket.Puback do
                 Keyword.put(opts, :packet_identifier, packet_identifier)
                 |> Keyword.put(:properties, properties)
 
-              struct(__MODULE__, opts)
+              {:ok, struct!(__MODULE__, opts)}
             end
 
           _ ->

@@ -15,7 +15,7 @@ defmodule ControlPacket.Disconnect do
 
         with {:ok, properties} <- Properties.new(properties) do
           opts = Keyword.put(opts, :properties, properties)
-          struct(__MODULE__, opts)
+          {:ok, struct!(__MODULE__, opts)}
         end
 
       {:error, _} ->
