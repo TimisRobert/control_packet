@@ -135,7 +135,7 @@ defmodule ControlPacket do
              {:ok, username, size} <- decode_string(username_flag == 1, size, rest),
              {:ok, password, _} <- decode_string(password_flag == 1, size, rest) do
           {:ok,
-           %ControlPacket.Connect{
+           ControlPacket.Connect.new(
              clientid: clientid,
              will: will,
              will_retain: will_retain == 1,
@@ -145,7 +145,7 @@ defmodule ControlPacket do
              properties: properties,
              username: username,
              password: password
-           }, packet_vbi + packet_vbi_size + 1}
+           ), packet_vbi + packet_vbi_size + 1}
         end
       else
         _ -> {:error, :malformed_packet}
@@ -164,11 +164,11 @@ defmodule ControlPacket do
         with {:ok, reason_code} <- decode_reason_code(@connack, reason_code),
              {:ok, properties} <- decode_properties(@connack, properties) do
           {:ok,
-           %ControlPacket.Connack{
+           ControlPacket.Connack.new(
              session_present: session_present == 1,
              reason_code: reason_code,
              properties: properties
-           }, packet_vbi + packet_vbi_size + 1}
+           ), packet_vbi + packet_vbi_size + 1}
         end
       else
         _ -> {:error, :malformed_packet}
@@ -190,15 +190,13 @@ defmodule ControlPacket do
            <<_::bytes-size(size), properties::bytes-size(vbi), payload::bytes>> <- rest do
         with {:ok, properties} <- decode_properties(@publish, properties) do
           {:ok,
-           %ControlPacket.Publish{
+           ControlPacket.Publish.new(topic_name, payload,
              dup_flag: dup_flag == 1,
              qos_level: qos_level,
              retain: retain == 1,
-             topic_name: topic_name,
              packet_identifier: packet_identifier,
-             properties: properties,
-             payload: payload
-           }, packet_vbi + packet_vbi_size + 1}
+             properties: properties
+           ), packet_vbi + packet_vbi_size + 1}
         end
       else
         _ -> {:error, :malformed_packet}
@@ -209,20 +207,16 @@ defmodule ControlPacket do
   end
 
   defp decode(<<@puback::4, 0::4, 2, packet_identifier::16, _::bytes>>) do
-    {:ok,
-     %ControlPacket.Puback{
-       packet_identifier: packet_identifier,
-       reason_code: :success
-     }, 4}
+    {:ok, ControlPacket.Puback.new(packet_identifier: packet_identifier), 4}
   end
 
   defp decode(<<@puback::4, 0::4, 3, packet_identifier::16, reason_code, _::bytes>>) do
     with {:ok, reason_code} <- decode_reason_code(@puback, reason_code) do
       {:ok,
-       %ControlPacket.Puback{
+       ControlPacket.Puback.new(
          packet_identifier: packet_identifier,
          reason_code: reason_code
-       }, 5}
+       ), 5}
     end
   end
 
@@ -235,11 +229,11 @@ defmodule ControlPacket do
         with {:ok, reason_code} <- decode_reason_code(@puback, reason_code),
              {:ok, properties} <- decode_properties(@puback, properties) do
           {:ok,
-           %ControlPacket.Puback{
+           ControlPacket.Puback.new(
              packet_identifier: packet_identifier,
              reason_code: reason_code,
              properties: properties
-           }, packet_vbi + packet_vbi_size + 1}
+           ), packet_vbi + packet_vbi_size + 1}
         end
       else
         _ -> {:error, :malformed_packet}
@@ -250,20 +244,16 @@ defmodule ControlPacket do
   end
 
   defp decode(<<@pubrec::4, 0::4, 2, packet_identifier::16, _::bytes>>) do
-    {:ok,
-     %ControlPacket.Pubrec{
-       packet_identifier: packet_identifier,
-       reason_code: :success
-     }, 4}
+    {:ok, ControlPacket.Pubrec.new(packet_identifier: packet_identifier), 4}
   end
 
   defp decode(<<@pubrec::4, 0::4, 3, packet_identifier::16, reason_code, _::bytes>>) do
     with {:ok, reason_code} <- decode_reason_code(@pubrec, reason_code) do
       {:ok,
-       %ControlPacket.Pubrec{
+       ControlPacket.Pubrec.new(
          packet_identifier: packet_identifier,
          reason_code: reason_code
-       }, 5}
+       ), 5}
     end
   end
 
@@ -276,11 +266,11 @@ defmodule ControlPacket do
         with {:ok, reason_code} <- decode_reason_code(@pubrec, reason_code),
              {:ok, properties} <- decode_properties(@pubrec, properties) do
           {:ok,
-           %ControlPacket.Pubrec{
+           ControlPacket.Pubrec.new(
              packet_identifier: packet_identifier,
              reason_code: reason_code,
              properties: properties
-           }, packet_vbi + packet_vbi_size + 1}
+           ), packet_vbi + packet_vbi_size + 1}
         end
       else
         _ -> {:error, :malformed_packet}
@@ -291,20 +281,16 @@ defmodule ControlPacket do
   end
 
   defp decode(<<@pubrel::4, 2::4, 2, packet_identifier::16, _::bytes>>) do
-    {:ok,
-     %ControlPacket.Pubrel{
-       packet_identifier: packet_identifier,
-       reason_code: :success
-     }, 4}
+    {:ok, ControlPacket.Pubrel.new(packet_identifier: packet_identifier), 4}
   end
 
   defp decode(<<@pubrel::4, 2::4, 3, packet_identifier::16, reason_code, _::bytes>>) do
     with {:ok, reason_code} <- decode_reason_code(@pubrel, reason_code) do
       {:ok,
-       %ControlPacket.Pubrel{
+       ControlPacket.Pubrel.new(
          packet_identifier: packet_identifier,
          reason_code: reason_code
-       }, 5}
+       ), 5}
     end
   end
 
@@ -317,11 +303,11 @@ defmodule ControlPacket do
         with {:ok, reason_code} <- decode_reason_code(@pubrel, reason_code),
              {:ok, properties} <- decode_properties(@pubrel, properties) do
           {:ok,
-           %ControlPacket.Pubrel{
+           ControlPacket.Pubrel.new(
              packet_identifier: packet_identifier,
              reason_code: reason_code,
              properties: properties
-           }, packet_vbi + packet_vbi_size + 1}
+           ), packet_vbi + packet_vbi_size + 1}
         end
       else
         _ -> {:error, :malformed_packet}
@@ -332,20 +318,16 @@ defmodule ControlPacket do
   end
 
   defp decode(<<@pubcomp::4, 0::4, 2, packet_identifier::16, _::bytes>>) do
-    {:ok,
-     %ControlPacket.Pubcomp{
-       packet_identifier: packet_identifier,
-       reason_code: :success
-     }, 4}
+    {:ok, ControlPacket.Pubcomp.new(packet_identifier: packet_identifier), 4}
   end
 
   defp decode(<<@pubcomp::4, 0::4, 3, packet_identifier::16, reason_code, _::bytes>>) do
     with {:ok, reason_code} <- decode_reason_code(@pubcomp, reason_code) do
       {:ok,
-       %ControlPacket.Pubcomp{
+       ControlPacket.Pubcomp.new(
          packet_identifier: packet_identifier,
          reason_code: reason_code
-       }, 5}
+       ), 5}
     end
   end
 
@@ -358,11 +340,11 @@ defmodule ControlPacket do
         with {:ok, reason_code} <- decode_reason_code(@pubcomp, reason_code),
              {:ok, properties} <- decode_properties(@pubcomp, properties) do
           {:ok,
-           %ControlPacket.Pubcomp{
+           ControlPacket.Pubcomp.new(
              packet_identifier: packet_identifier,
              reason_code: reason_code,
              properties: properties
-           }, packet_vbi + packet_vbi_size + 1}
+           ), packet_vbi + packet_vbi_size + 1}
         end
       else
         _ -> {:error, :malformed_packet}
@@ -381,11 +363,11 @@ defmodule ControlPacket do
         with {:ok, properties} <- decode_properties(@subscribe, properties),
              {:ok, topic_filters} <- decode_topic_flag_filters(rest) do
           {:ok,
-           %ControlPacket.Subscribe{
+           ControlPacket.Subscribe.new(
+             topic_filters,
              packet_identifier: packet_identifier,
-             properties: properties,
-             topic_filters: topic_filters
-           }, packet_vbi + packet_vbi_size + 1}
+             properties: properties
+           ), packet_vbi + packet_vbi_size + 1}
         end
       else
         _ -> {:error, :malformed_packet}
@@ -404,11 +386,10 @@ defmodule ControlPacket do
         with {:ok, properties} <- decode_properties(@suback, properties),
              {:ok, reason_codes} <- decode_reason_codes(@suback, rest) do
           {:ok,
-           %ControlPacket.Suback{
+           ControlPacket.Suback.new(reason_codes,
              packet_identifier: packet_identifier,
-             properties: properties,
-             reason_codes: reason_codes
-           }, packet_vbi + packet_vbi_size + 1}
+             properties: properties
+           ), packet_vbi + packet_vbi_size + 1}
         end
       else
         _ -> {:error, :malformed_packet}
@@ -427,11 +408,10 @@ defmodule ControlPacket do
         with {:ok, properties} <- decode_properties(@unsubscribe, properties),
              {:ok, topic_filters} <- decode_topic_filters(rest) do
           {:ok,
-           %ControlPacket.Unsubscribe{
+           ControlPacket.Unsubscribe.new(topic_filters,
              packet_identifier: packet_identifier,
-             properties: properties,
-             topic_filters: topic_filters
-           }, packet_vbi + packet_vbi_size + 1}
+             properties: properties
+           ), packet_vbi + packet_vbi_size + 1}
         end
       else
         _ -> {:error, :malformed_packet}
@@ -450,11 +430,10 @@ defmodule ControlPacket do
         with {:ok, properties} <- decode_properties(@unsuback, properties),
              {:ok, reason_codes} <- decode_reason_codes(@unsuback, rest) do
           {:ok,
-           %ControlPacket.Unsuback{
+           ControlPacket.Unsuback.new(reason_codes,
              packet_identifier: packet_identifier,
-             properties: properties,
-             reason_codes: reason_codes
-           }, packet_vbi + packet_vbi_size + 1}
+             properties: properties
+           ), packet_vbi + packet_vbi_size + 1}
         end
       else
         _ -> {:error, :malformed_packet}
@@ -465,20 +444,20 @@ defmodule ControlPacket do
   end
 
   defp decode(<<@pingreq::4, 0::4, 0, _::bytes>>) do
-    {:ok, %ControlPacket.Pingreq{}, 2}
+    {:ok, ControlPacket.Pingreq.new(), 2}
   end
 
   defp decode(<<@pingresp::4, 0::4, 0, _::bytes>>) do
-    {:ok, %ControlPacket.Pingresp{}, 2}
+    {:ok, ControlPacket.Pingresp.new(), 2}
   end
 
   defp decode(<<@disconnect::4, 0::4, 0, _::bytes>>) do
-    {:ok, %ControlPacket.Disconnect{reason_code: :normal_disconnection}, 2}
+    {:ok, ControlPacket.Disconnect.new(), 2}
   end
 
   defp decode(<<@disconnect::4, 0::4, 1, reason_code, _::bytes>>) do
     with {:ok, reason_code} <- decode_reason_code(@disconnect, reason_code) do
-      {:ok, %ControlPacket.Disconnect{reason_code: reason_code}, 3}
+      {:ok, ControlPacket.Disconnect.new(reason_code: reason_code), 3}
     end
   end
 
@@ -491,10 +470,10 @@ defmodule ControlPacket do
         with {:ok, reason_code} <- decode_reason_code(@disconnect, reason_code),
              {:ok, properties} <- decode_properties(@disconnect, properties) do
           {:ok,
-           %ControlPacket.Disconnect{
+           ControlPacket.Disconnect.new(
              reason_code: reason_code,
              properties: properties
-           }, packet_vbi + packet_vbi_size + 1}
+           ), packet_vbi + packet_vbi_size + 1}
         end
       else
         _ -> {:error, :malformed_packet}
@@ -505,7 +484,7 @@ defmodule ControlPacket do
   end
 
   defp decode(<<@auth::4, 0::4, 0, _::bytes>>) do
-    {:ok, %ControlPacket.Auth{reason_code: :success}, 2}
+    {:ok, ControlPacket.Auth.new(), 2}
   end
 
   defp decode(<<@auth::4, 0::4, rest::bytes>>) do
@@ -517,10 +496,10 @@ defmodule ControlPacket do
         with {:ok, reason_code} <- decode_reason_code(@auth, reason_code),
              {:ok, properties} <- decode_properties(@auth, properties) do
           {:ok,
-           %ControlPacket.Auth{
+           ControlPacket.Auth.new(
              reason_code: reason_code,
              properties: properties
-           }, packet_vbi + packet_vbi_size + 1}
+           ), packet_vbi + packet_vbi_size + 1}
         end
       else
         _ -> {:error, :malformed_packet}
@@ -1548,25 +1527,7 @@ defmodule ControlPacket do
   end
 
   defp decode_properties(_, <<>>, properties) do
-    {user_property, properties} = Keyword.pop_values(properties, :user_property)
-
-    duplicates =
-      Enum.reduce_while(properties, MapSet.new(), fn {k, _v}, acc ->
-        if MapSet.member?(acc, k) do
-          {:halt, {:error, :protocol_error}}
-        else
-          {:cont, MapSet.put(acc, k)}
-        end
-      end)
-
-    case duplicates do
-      {:error, _} = error ->
-        error
-
-      _ ->
-        properties = Keyword.put(properties, :user_property, user_property)
-        {:ok, properties}
-    end
+    {:ok, properties}
   end
 
   defp decode_properties(_, _, _), do: {:error, :malformed_packet}
@@ -1914,26 +1875,7 @@ defmodule ControlPacket do
   defp encode_properties(_, []), do: {:ok, [], 0}
 
   defp encode_properties(code, properties) do
-    {user_property, properties} = Keyword.pop(properties, :user_property)
-
-    duplicates =
-      Enum.reduce_while(properties, MapSet.new(), fn {k, _v}, acc ->
-        if MapSet.member?(acc, k) do
-          {:halt, {:error, :protocol_error}}
-        else
-          {:cont, MapSet.put(acc, k)}
-        end
-      end)
-
-    case duplicates do
-      {:error, _} = error ->
-        error
-
-      _ ->
-        properties = Enum.reduce(user_property, properties, &Keyword.put(&2, :user_property, &1))
-
-        encode_properties(code, properties, [], 0)
-    end
+    encode_properties(code, properties, [], 0)
   end
 
   defp encode_properties(code, [{:payload_format_indicator, byte} | list], data, size)
