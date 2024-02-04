@@ -11,6 +11,15 @@ defmodule ControlPacket.Subscribe do
         {properties, opts} = Keyword.pop!(opts, :properties)
 
         with {:ok, properties} <- Properties.new(properties) do
+          topic_filters =
+            Enum.map(topic_filters, fn
+              topic_filter when is_tuple(topic_filter) ->
+                topic_filter
+
+              topic_filter ->
+                {topic_filter, []}
+            end)
+
           opts =
             Keyword.put(opts, :topic_filters, topic_filters)
             |> Keyword.put(:properties, properties)
