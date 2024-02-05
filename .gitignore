@@ -27,3 +27,4 @@ starflare_mqtt-*.tar
 
 .direnv
 .devenv
+doc
