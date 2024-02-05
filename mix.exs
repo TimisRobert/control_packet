@@ -4,10 +4,14 @@ defmodule ControlPacket.MixProject do
   def project do
     [
       app: :control_packet,
-      version: "0.1.0",
+      version: "1.0.0",
       elixir: "~> 1.15",
       start_permanent: Mix.env() == :prod,
-      deps: deps()
+      deps: deps(),
+      package: package(),
+      name: "ControlPacket",
+      description: "MQTT 5 packet decoder and encoder",
+      source_url: "https://github.com/TimisRobert/control_packet"
     ]
   end
 
@@ -23,6 +27,13 @@ defmodule ControlPacket.MixProject do
     [
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false}
+    ]
+  end
+
+  defp package() do
+    [
+      licenses: ["APGL-3.0-or-later"],
+      links: %{"GitHub" => "https://github.com/TimisRobert/control_packet"}
     ]
   end
 end
