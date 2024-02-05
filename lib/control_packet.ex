@@ -182,7 +182,8 @@ defmodule ControlPacket do
 
   defp decode(<<@publish::4, flags::bits-4, rest::bytes>>) do
     with {:ok, packet_vbi, packet_vbi_size} <- decode_vbi(rest),
-         <<_::bytes-size(packet_vbi_size), rest::bytes-size(packet_vbi), _::bytes>> <- rest do
+         <<_::bytes-size(packet_vbi_size), rest::bytes-size(packet_vbi), _::bytes>> <-
+           rest do
       with <<dup_flag::1, qos_level::2, retain::1>> <- flags,
            {:ok, qos_level} <- decode_qos(qos_level),
            <<length::16, topic_name::bytes-size(length), rest::bytes>> <- rest,
@@ -1149,20 +1150,21 @@ defmodule ControlPacket do
     end
   end
 
-  defp decode_vbi(data) do
+  def decode_vbi(data) do
     decode_vbi(data, 1, 0)
   end
 
-  defp decode_vbi(<<1::1, num::7, rest::bytes>>, multiplier, total) do
+  def decode_vbi(<<1::1, num::7, rest::bytes>>, multiplier, total) do
     decode_vbi(rest, multiplier <<< 7, total + num * multiplier)
   end
 
-  defp decode_vbi(<<0::1, num::7, _::bytes>>, multiplier, total) do
+  def decode_vbi(<<0::1, num::7, _::bytes>>, multiplier, total) do
+    total = total + num * multiplier
     size = if total === 0, do: 1, else: trunc(:math.log(total) / :math.log(128)) + 1
-    {:ok, total + num * multiplier, size}
+    {:ok, total, size}
   end
 
-  defp decode_vbi(_, _, _), do: {:error, :malformed_packet}
+  def decode_vbi(_, _, _), do: {:error, :malformed_packet}
 
   defp decode_reason_code(code, @success)
        when code in [@connack, @puback, @pubrec, @pubrel, @pubcomp, @unsuback, @auth] do
