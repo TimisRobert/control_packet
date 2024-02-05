@@ -32,7 +32,7 @@ defmodule ControlPacket.MixProject do
 
   defp package() do
     [
-      licenses: ["APGL-3.0-or-later"],
+      licenses: ["AGPL-3.0-or-later"],
       links: %{"GitHub" => "https://github.com/TimisRobert/control_packet"}
     ]
   end
