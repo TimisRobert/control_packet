@@ -3,12 +3,12 @@ defmodule ControlPacketTest do
   doctest ControlPacket
 
   test "connect" do
-    {:ok, packet} =
-      ControlPacket.Connect.new(
+    packet =
+      %ControlPacket.Connect{
         username: "test",
         password: "test",
         clientid: "one"
-      )
+      }
 
     {:ok, encoded, _size} = ControlPacket.encode(packet)
 
@@ -20,7 +20,7 @@ defmodule ControlPacketTest do
   end
 
   test "connack" do
-    {:ok, packet} = ControlPacket.Connack.new()
+    packet = %ControlPacket.Connack{}
 
     {:ok, encoded, _size} = ControlPacket.encode(packet)
 
@@ -32,7 +32,7 @@ defmodule ControlPacketTest do
   end
 
   test "publish qos0" do
-    {:ok, packet} = ControlPacket.Publish.new("test", "test", qos_level: :at_most_once)
+    packet = %ControlPacket.Publish{topic_name: "test", payload: "test", qos_level: :at_most_once}
 
     {:ok, encoded, _size} = ControlPacket.encode(packet)
 
@@ -44,15 +44,17 @@ defmodule ControlPacketTest do
   end
 
   test "publish qos1" do
-    {:ok, packet} =
-      ControlPacket.Publish.new("test", "test",
+    packet =
+      %ControlPacket.Publish{
+        topic_name: "test",
+        payload: "test",
         qos_level: :at_least_once,
         packet_identifier: 1,
         properties: [
           user_property: {"test", "test"},
           payload_format_indicator: 0
         ]
-      )
+      }
 
     {:ok, encoded, _size} = ControlPacket.encode(packet)
 
@@ -64,7 +66,7 @@ defmodule ControlPacketTest do
   end
 
   test "puback" do
-    {:ok, packet} = ControlPacket.Puback.new(packet_identifier: 1)
+    packet = %ControlPacket.Puback{packet_identifier: 1}
 
     {:ok, encoded, _size} = ControlPacket.encode(packet)
 
@@ -76,7 +78,7 @@ defmodule ControlPacketTest do
   end
 
   test "pubrec" do
-    {:ok, packet} = ControlPacket.Pubrec.new(packet_identifier: 1)
+    packet = %ControlPacket.Pubrec{packet_identifier: 1}
 
     {:ok, encoded, _size} = ControlPacket.encode(packet)
 
@@ -88,7 +90,7 @@ defmodule ControlPacketTest do
   end
 
   test "pubrel" do
-    {:ok, packet} = ControlPacket.Pubrel.new(packet_identifier: 1)
+    packet = %ControlPacket.Pubrel{packet_identifier: 1}
 
     {:ok, encoded, _size} = ControlPacket.encode(packet)
 
@@ -100,7 +102,7 @@ defmodule ControlPacketTest do
   end
 
   test "pubcomp" do
-    {:ok, packet} = ControlPacket.Pubcomp.new(packet_identifier: 1)
+    packet = %ControlPacket.Pubcomp{packet_identifier: 1}
 
     {:ok, encoded, _size} = ControlPacket.encode(packet)
 
@@ -112,16 +114,16 @@ defmodule ControlPacketTest do
   end
 
   test "subscribe" do
-    {:ok, packet} =
-      ControlPacket.Subscribe.new(
-        [
+    packet =
+      %ControlPacket.Subscribe{
+        topic_filters: [
           {"test",
            retain_handling: :send_when_subscribed, rap: false, nl: false, qos: :at_least_once},
           {"test2",
            retain_handling: :send_when_subscribed, rap: false, nl: false, qos: :at_least_once}
         ],
         packet_identifier: 1
-      )
+      }
 
     {:ok, encoded, _size} = ControlPacket.encode(packet)
 
@@ -133,8 +135,8 @@ defmodule ControlPacketTest do
   end
 
   test "suback" do
-    {:ok, packet} =
-      ControlPacket.Suback.new([:granted_qos_1, :granted_qos_2], packet_identifier: 1)
+    packet =
+      %ControlPacket.Suback{reason_codes: [:granted_qos_1, :granted_qos_2], packet_identifier: 1}
 
     {:ok, encoded, _size} = ControlPacket.encode(packet)
 
@@ -146,7 +148,7 @@ defmodule ControlPacketTest do
   end
 
   test "unsubscribe" do
-    {:ok, packet} = ControlPacket.Unsubscribe.new(["test", "test2"], packet_identifier: 1)
+    packet = %ControlPacket.Unsubscribe{topic_filters: ["test", "test2"], packet_identifier: 1}
 
     {:ok, encoded, _size} = ControlPacket.encode(packet)
 
@@ -158,8 +160,11 @@ defmodule ControlPacketTest do
   end
 
   test "unsuback" do
-    {:ok, packet} =
-      ControlPacket.Unsuback.new([:success, :no_subscription_existed], packet_identifier: 1)
+    packet =
+      %ControlPacket.Unsuback{
+        reason_codes: [:success, :no_subscription_existed],
+        packet_identifier: 1
+      }
 
     {:ok, encoded, _size} = ControlPacket.encode(packet)
 
@@ -171,7 +176,7 @@ defmodule ControlPacketTest do
   end
 
   test "pingreq" do
-    {:ok, packet} = ControlPacket.Pingreq.new()
+    packet = %ControlPacket.Pingreq{}
 
     {:ok, encoded, _size} = ControlPacket.encode(packet)
 
@@ -183,7 +188,7 @@ defmodule ControlPacketTest do
   end
 
   test "pingresp" do
-    {:ok, packet} = ControlPacket.Pingresp.new()
+    packet = %ControlPacket.Pingresp{}
 
     {:ok, encoded, _size} = ControlPacket.encode(packet)
 
@@ -195,7 +200,7 @@ defmodule ControlPacketTest do
   end
 
   test "disconnect" do
-    {:ok, packet} = ControlPacket.Disconnect.new()
+    packet = %ControlPacket.Disconnect{}
 
     {:ok, encoded, _size} = ControlPacket.encode(packet)
 
@@ -207,7 +212,7 @@ defmodule ControlPacketTest do
   end
 
   test "auth" do
-    {:ok, packet} = ControlPacket.Auth.new()
+    packet = %ControlPacket.Auth{}
 
     {:ok, encoded, _size} = ControlPacket.encode(packet)
 

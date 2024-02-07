@@ -133,19 +133,20 @@ defmodule ControlPacket do
              {:ok, properties} <- decode_properties(@connect, properties),
              {:ok, will, size} <- decode_will(will_flag == 1, rest),
              {:ok, username, size} <- decode_string(username_flag == 1, size, rest),
-             {:ok, password, _} <- decode_string(password_flag == 1, size, rest),
-             {:ok, connect} <-
-               ControlPacket.Connect.new(
-                 clientid: clientid,
-                 will: will,
-                 will_retain: will_retain == 1,
-                 clean_start: clean_start == 1,
-                 will_qos: will_qos,
-                 keep_alive: keep_alive,
-                 properties: properties,
-                 username: username,
-                 password: password
-               ) do
+             {:ok, password, _} <- decode_string(password_flag == 1, size, rest) do
+          connect =
+            %ControlPacket.Connect{
+              clientid: clientid,
+              will: will,
+              will_retain: will_retain == 1,
+              clean_start: clean_start == 1,
+              will_qos: will_qos,
+              keep_alive: keep_alive,
+              properties: properties,
+              username: username,
+              password: password
+            }
+
           {:ok, connect, packet_vbi + packet_vbi_size + 1}
         end
       else
@@ -163,13 +164,14 @@ defmodule ControlPacket do
            {:ok, vbi, size} <- decode_vbi(rest),
            <<_::bytes-size(size), properties::bytes-size(vbi)>> <- rest do
         with {:ok, reason_code} <- decode_reason_code(@connack, reason_code),
-             {:ok, properties} <- decode_properties(@connack, properties),
-             {:ok, connack} <-
-               ControlPacket.Connack.new(
-                 session_present: session_present == 1,
-                 reason_code: reason_code,
-                 properties: properties
-               ) do
+             {:ok, properties} <- decode_properties(@connack, properties) do
+          connack =
+            %ControlPacket.Connack{
+              session_present: session_present == 1,
+              reason_code: reason_code,
+              properties: properties
+            }
+
           {:ok, connack, packet_vbi + packet_vbi_size + 1}
         end
       else
@@ -191,15 +193,18 @@ defmodule ControlPacket do
            <<_::size(size), rest::bytes>> <- rest,
            {:ok, vbi, size} <- decode_vbi(rest),
            <<_::bytes-size(size), properties::bytes-size(vbi), payload::bytes>> <- rest do
-        with {:ok, properties} <- decode_properties(@publish, properties),
-             {:ok, publish} <-
-               ControlPacket.Publish.new(topic_name, payload,
-                 dup_flag: dup_flag == 1,
-                 qos_level: qos_level,
-                 retain: retain == 1,
-                 packet_identifier: packet_identifier,
-                 properties: properties
-               ) do
+        with {:ok, properties} <- decode_properties(@publish, properties) do
+          publish =
+            %ControlPacket.Publish{
+              topic_name: topic_name,
+              payload: payload,
+              dup_flag: dup_flag == 1,
+              qos_level: qos_level,
+              retain: retain == 1,
+              packet_identifier: packet_identifier,
+              properties: properties
+            }
+
           {:ok, publish, packet_vbi + packet_vbi_size + 1}
         end
       else
@@ -211,18 +216,17 @@ defmodule ControlPacket do
   end
 
   defp decode(<<@puback::4, 0::4, 2, packet_identifier::16, _::bytes>>) do
-    with {:ok, puback} <- ControlPacket.Puback.new(packet_identifier: packet_identifier) do
-      {:ok, puback, 4}
-    end
+    {:ok, %ControlPacket.Puback{packet_identifier: packet_identifier}, 4}
   end
 
   defp decode(<<@puback::4, 0::4, 3, packet_identifier::16, reason_code, _::bytes>>) do
-    with {:ok, reason_code} <- decode_reason_code(@puback, reason_code),
-         {:ok, puback} <-
-           ControlPacket.Puback.new(
-             packet_identifier: packet_identifier,
-             reason_code: reason_code
-           ) do
+    with {:ok, reason_code} <- decode_reason_code(@puback, reason_code) do
+      puback =
+        %ControlPacket.Puback{
+          packet_identifier: packet_identifier,
+          reason_code: reason_code
+        }
+
       {:ok, puback, 5}
     end
   end
@@ -234,13 +238,14 @@ defmodule ControlPacket do
            {:ok, vbi, size} <- decode_vbi(rest),
            <<_::bytes-size(size), properties::bytes-size(vbi)>> <- rest do
         with {:ok, reason_code} <- decode_reason_code(@puback, reason_code),
-             {:ok, properties} <- decode_properties(@puback, properties),
-             {:ok, puback} <-
-               ControlPacket.Puback.new(
-                 packet_identifier: packet_identifier,
-                 reason_code: reason_code,
-                 properties: properties
-               ) do
+             {:ok, properties} <- decode_properties(@puback, properties) do
+          puback =
+            %ControlPacket.Puback{
+              packet_identifier: packet_identifier,
+              reason_code: reason_code,
+              properties: properties
+            }
+
           {:ok, puback, packet_vbi + packet_vbi_size + 1}
         end
       else
@@ -252,18 +257,17 @@ defmodule ControlPacket do
   end
 
   defp decode(<<@pubrec::4, 0::4, 2, packet_identifier::16, _::bytes>>) do
-    with {:ok, pubrec} <- ControlPacket.Pubrec.new(packet_identifier: packet_identifier) do
-      {:ok, pubrec, 4}
-    end
+    {:ok, %ControlPacket.Pubrec{packet_identifier: packet_identifier}, 4}
   end
 
   defp decode(<<@pubrec::4, 0::4, 3, packet_identifier::16, reason_code, _::bytes>>) do
-    with {:ok, reason_code} <- decode_reason_code(@pubrec, reason_code),
-         {:ok, pubrec} <-
-           ControlPacket.Pubrec.new(
-             packet_identifier: packet_identifier,
-             reason_code: reason_code
-           ) do
+    with {:ok, reason_code} <- decode_reason_code(@pubrec, reason_code) do
+      pubrec =
+        %ControlPacket.Pubrec{
+          packet_identifier: packet_identifier,
+          reason_code: reason_code
+        }
+
       {:ok, pubrec, 5}
     end
   end
@@ -275,13 +279,14 @@ defmodule ControlPacket do
            {:ok, vbi, size} <- decode_vbi(rest),
            <<_::bytes-size(size), properties::bytes-size(vbi)>> <- rest do
         with {:ok, reason_code} <- decode_reason_code(@pubrec, reason_code),
-             {:ok, properties} <- decode_properties(@pubrec, properties),
-             {:ok, pubrec} <-
-               ControlPacket.Pubrec.new(
-                 packet_identifier: packet_identifier,
-                 reason_code: reason_code,
-                 properties: properties
-               ) do
+             {:ok, properties} <- decode_properties(@pubrec, properties) do
+          pubrec =
+            %ControlPacket.Pubrec{
+              packet_identifier: packet_identifier,
+              reason_code: reason_code,
+              properties: properties
+            }
+
           {:ok, pubrec, packet_vbi + packet_vbi_size + 1}
         end
       else
@@ -293,18 +298,17 @@ defmodule ControlPacket do
   end
 
   defp decode(<<@pubrel::4, 2::4, 2, packet_identifier::16, _::bytes>>) do
-    with {:ok, pubrel} <- ControlPacket.Pubrel.new(packet_identifier: packet_identifier) do
-      {:ok, pubrel, 4}
-    end
+    {:ok, %ControlPacket.Pubrel{packet_identifier: packet_identifier}, 4}
   end
 
   defp decode(<<@pubrel::4, 2::4, 3, packet_identifier::16, reason_code, _::bytes>>) do
-    with {:ok, reason_code} <- decode_reason_code(@pubrel, reason_code),
-         {:ok, pubrel} <-
-           ControlPacket.Pubrel.new(
-             packet_identifier: packet_identifier,
-             reason_code: reason_code
-           ) do
+    with {:ok, reason_code} <- decode_reason_code(@pubrel, reason_code) do
+      pubrel =
+        %ControlPacket.Pubrel{
+          packet_identifier: packet_identifier,
+          reason_code: reason_code
+        }
+
       {:ok, pubrel, 5}
     end
   end
@@ -316,13 +320,14 @@ defmodule ControlPacket do
            {:ok, vbi, size} <- decode_vbi(rest),
            <<_::bytes-size(size), properties::bytes-size(vbi)>> <- rest do
         with {:ok, reason_code} <- decode_reason_code(@pubrel, reason_code),
-             {:ok, properties} <- decode_properties(@pubrel, properties),
-             {:ok, pubrel} <-
-               ControlPacket.Pubrel.new(
-                 packet_identifier: packet_identifier,
-                 reason_code: reason_code,
-                 properties: properties
-               ) do
+             {:ok, properties} <- decode_properties(@pubrel, properties) do
+          pubrel =
+            %ControlPacket.Pubrel{
+              packet_identifier: packet_identifier,
+              reason_code: reason_code,
+              properties: properties
+            }
+
           {:ok, pubrel, packet_vbi + packet_vbi_size + 1}
         end
       else
@@ -334,18 +339,17 @@ defmodule ControlPacket do
   end
 
   defp decode(<<@pubcomp::4, 0::4, 2, packet_identifier::16, _::bytes>>) do
-    with {:ok, pubcomp} <- ControlPacket.Pubcomp.new(packet_identifier: packet_identifier) do
-      {:ok, pubcomp, 4}
-    end
+    {:ok, %ControlPacket.Pubcomp{packet_identifier: packet_identifier}, 4}
   end
 
   defp decode(<<@pubcomp::4, 0::4, 3, packet_identifier::16, reason_code, _::bytes>>) do
-    with {:ok, reason_code} <- decode_reason_code(@pubcomp, reason_code),
-         {:ok, pubcomp} <-
-           ControlPacket.Pubcomp.new(
-             packet_identifier: packet_identifier,
-             reason_code: reason_code
-           ) do
+    with {:ok, reason_code} <- decode_reason_code(@pubcomp, reason_code) do
+      pubcomp =
+        %ControlPacket.Pubcomp{
+          packet_identifier: packet_identifier,
+          reason_code: reason_code
+        }
+
       {:ok, pubcomp, 5}
     end
   end
@@ -357,13 +361,14 @@ defmodule ControlPacket do
            {:ok, vbi, size} <- decode_vbi(rest),
            <<_::bytes-size(size), properties::bytes-size(vbi)>> <- rest do
         with {:ok, reason_code} <- decode_reason_code(@pubcomp, reason_code),
-             {:ok, properties} <- decode_properties(@pubcomp, properties),
-             {:ok, pubcomp} <-
-               ControlPacket.Pubcomp.new(
-                 packet_identifier: packet_identifier,
-                 reason_code: reason_code,
-                 properties: properties
-               ) do
+             {:ok, properties} <- decode_properties(@pubcomp, properties) do
+          pubcomp =
+            %ControlPacket.Pubcomp{
+              packet_identifier: packet_identifier,
+              reason_code: reason_code,
+              properties: properties
+            }
+
           {:ok, pubcomp, packet_vbi + packet_vbi_size + 1}
         end
       else
@@ -381,13 +386,14 @@ defmodule ControlPacket do
            {:ok, vbi, size} <- decode_vbi(rest),
            <<_::bytes-size(size), properties::bytes-size(vbi), rest::bytes>> <- rest do
         with {:ok, properties} <- decode_properties(@subscribe, properties),
-             {:ok, topic_filters} <- decode_topic_flag_filters(rest),
-             {:ok, subscribe} <-
-               ControlPacket.Subscribe.new(
-                 topic_filters,
-                 packet_identifier: packet_identifier,
-                 properties: properties
-               ) do
+             {:ok, topic_filters} <- decode_topic_flag_filters(rest) do
+          subscribe =
+            %ControlPacket.Subscribe{
+              topic_filters: topic_filters,
+              packet_identifier: packet_identifier,
+              properties: properties
+            }
+
           {:ok, subscribe, packet_vbi + packet_vbi_size + 1}
         end
       else
@@ -405,12 +411,14 @@ defmodule ControlPacket do
            {:ok, vbi, size} <- decode_vbi(rest),
            <<_::bytes-size(size), properties::bytes-size(vbi), rest::bytes>> <- rest do
         with {:ok, properties} <- decode_properties(@suback, properties),
-             {:ok, reason_codes} <- decode_reason_codes(@suback, rest),
-             {:ok, suback} <-
-               ControlPacket.Suback.new(reason_codes,
-                 packet_identifier: packet_identifier,
-                 properties: properties
-               ) do
+             {:ok, reason_codes} <- decode_reason_codes(@suback, rest) do
+          suback =
+            %ControlPacket.Suback{
+              reason_codes: reason_codes,
+              packet_identifier: packet_identifier,
+              properties: properties
+            }
+
           {:ok, suback, packet_vbi + packet_vbi_size + 1}
         end
       else
@@ -428,12 +436,14 @@ defmodule ControlPacket do
            {:ok, vbi, size} <- decode_vbi(rest),
            <<_::bytes-size(size), properties::bytes-size(vbi), rest::bytes>> <- rest do
         with {:ok, properties} <- decode_properties(@unsubscribe, properties),
-             {:ok, topic_filters} <- decode_topic_filters(rest),
-             {:ok, unsubscribe} <-
-               ControlPacket.Unsubscribe.new(topic_filters,
-                 packet_identifier: packet_identifier,
-                 properties: properties
-               ) do
+             {:ok, topic_filters} <- decode_topic_filters(rest) do
+          unsubscribe =
+            %ControlPacket.Unsubscribe{
+              topic_filters: topic_filters,
+              packet_identifier: packet_identifier,
+              properties: properties
+            }
+
           {:ok, unsubscribe, packet_vbi + packet_vbi_size + 1}
         end
       else
@@ -451,12 +461,14 @@ defmodule ControlPacket do
            {:ok, vbi, size} <- decode_vbi(rest),
            <<_::bytes-size(size), properties::bytes-size(vbi), rest::bytes>> <- rest do
         with {:ok, properties} <- decode_properties(@unsuback, properties),
-             {:ok, reason_codes} <- decode_reason_codes(@unsuback, rest),
-             {:ok, unsuback} <-
-               ControlPacket.Unsuback.new(reason_codes,
-                 packet_identifier: packet_identifier,
-                 properties: properties
-               ) do
+             {:ok, reason_codes} <- decode_reason_codes(@unsuback, rest) do
+          unsuback =
+            %ControlPacket.Unsuback{
+              reason_codes: reason_codes,
+              packet_identifier: packet_identifier,
+              properties: properties
+            }
+
           {:ok, unsuback, packet_vbi + packet_vbi_size + 1}
         end
       else
@@ -468,27 +480,20 @@ defmodule ControlPacket do
   end
 
   defp decode(<<@pingreq::4, 0::4, 0, _::bytes>>) do
-    with {:ok, pingreq} <- ControlPacket.Pingreq.new() do
-      {:ok, pingreq, 2}
-    end
+    {:ok, %ControlPacket.Pingreq{}, 2}
   end
 
   defp decode(<<@pingresp::4, 0::4, 0, _::bytes>>) do
-    with {:ok, pingresp} <- ControlPacket.Pingresp.new() do
-      {:ok, pingresp, 2}
-    end
+    {:ok, %ControlPacket.Pingresp{}, 2}
   end
 
   defp decode(<<@disconnect::4, 0::4, 0, _::bytes>>) do
-    with {:ok, disconnect} <- ControlPacket.Disconnect.new() do
-      {:ok, disconnect, 2}
-    end
+    {:ok, %ControlPacket.Disconnect{}, 2}
   end
 
   defp decode(<<@disconnect::4, 0::4, 1, reason_code, _::bytes>>) do
-    with {:ok, reason_code} <- decode_reason_code(@disconnect, reason_code),
-         {:ok, disconnect} <- ControlPacket.Disconnect.new(reason_code: reason_code) do
-      {:ok, disconnect, 3}
+    with {:ok, reason_code} <- decode_reason_code(@disconnect, reason_code) do
+      {:ok, %ControlPacket.Disconnect{reason_code: reason_code}, 3}
     end
   end
 
@@ -499,12 +504,13 @@ defmodule ControlPacket do
            {:ok, vbi, size} <- decode_vbi(rest),
            <<_::bytes-size(size), properties::bytes-size(vbi)>> <- rest do
         with {:ok, reason_code} <- decode_reason_code(@disconnect, reason_code),
-             {:ok, properties} <- decode_properties(@disconnect, properties),
-             {:ok, disconnect} <-
-               ControlPacket.Disconnect.new(
-                 reason_code: reason_code,
-                 properties: properties
-               ) do
+             {:ok, properties} <- decode_properties(@disconnect, properties) do
+          disconnect =
+            %ControlPacket.Disconnect{
+              reason_code: reason_code,
+              properties: properties
+            }
+
           {:ok, disconnect, packet_vbi + packet_vbi_size + 1}
         end
       else
@@ -516,9 +522,7 @@ defmodule ControlPacket do
   end
 
   defp decode(<<@auth::4, 0::4, 0, _::bytes>>) do
-    with {:ok, auth} <- ControlPacket.Auth.new() do
-      {:ok, auth, 2}
-    end
+    {:ok, %ControlPacket.Auth{}, 2}
   end
 
   defp decode(<<@auth::4, 0::4, rest::bytes>>) do
@@ -528,12 +532,13 @@ defmodule ControlPacket do
            {:ok, vbi, size} <- decode_vbi(rest),
            <<_::bytes-size(size), properties::bytes-size(vbi)>> <- rest do
         with {:ok, reason_code} <- decode_reason_code(@auth, reason_code),
-             {:ok, properties} <- decode_properties(@auth, properties),
-             {:ok, auth} <-
-               ControlPacket.Auth.new(
-                 reason_code: reason_code,
-                 properties: properties
-               ) do
+             {:ok, properties} <- decode_properties(@auth, properties) do
+          auth =
+            %ControlPacket.Auth{
+              reason_code: reason_code,
+              properties: properties
+            }
+
           {:ok, auth, packet_vbi + packet_vbi_size + 1}
         end
       else
