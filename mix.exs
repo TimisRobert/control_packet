@@ -4,7 +4,7 @@ defmodule ControlPacket.MixProject do
   def project do
     [
       app: :control_packet,
-      version: "1.1.0",
+      version: "1.1.1",
       elixir: "~> 1.15",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
@@ -33,7 +33,7 @@ defmodule ControlPacket.MixProject do
 
   defp package() do
     [
-      licenses: ["AGPL-3.0-or-later"],
+      licenses: ["MIT"],
       links: %{"GitHub" => "https://github.com/TimisRobert/control_packet"}
     ]
   end
